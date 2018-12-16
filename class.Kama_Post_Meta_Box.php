@@ -235,11 +235,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 				'callback'      => '', // название функции, которая отвечает за вывод поля.
 				// если указана, то ни один параметр не учитывается и за вывод полностью отвечает указанная функция.
-				// Все параметры передаются ей... Получит параметры:
-				// $args - все параметры указанные тут
-				// $post - объект WP_Post текущей записи
-				// $name - название атрибута 'name' (название полей собираются в массив)
-				// $val - атрибут 'value' текущего поля
+				// Все параметры передаются ей... Получит параметры: $args, $post, $name, $val
 
 				'sanitize_func' => '', // функция очистки данных при сохранении - название функции или Closure. Укажите 'none', чтобы не очищать данные...
 				// работает, только если не установлен глобальный параметр 'save_sanitize'...
@@ -388,7 +384,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			// image
 			elseif( 'image' === $rg->type ){
 				$usetype = $rg->options ? $rg->options[0] : 'id';
-				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name, $usetype) );
+				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name, $usetype, $post) );
 			}
 			// text, email, number, url, tel, color, password, date, month, week, range
 			else {
@@ -506,7 +502,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
 		}
 
-		static function _image_type_media_selector( $img_ident, $name, $usetype = 'id' ){
+		static function _image_type_media_selector( $img_ident, $name, $usetype = 'id', $post ){
 			wp_enqueue_media();
 
 			if( is_numeric($img_ident) )
@@ -523,7 +519,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			<span class="kmb_img_wrap" data-usetype="<?= esc_attr($usetype) ?>" style="display:flex; align-items:center;">
 				<img src="<?= esc_url($src) ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
 				<span>
-					<input class="set_img button button-small" type="button" value="<?= esc_attr($img_ident) ? __('Change image') : __('Choose image')?>" />
+					<input class="set_img button button-small" type="button" value="<?= __('Set image') ?>" />
+					<input class="set_img button button-small" type="button" data-post_id="<?= $post->ID ?>" value="<?= __( 'Uploaded to this post' ) ?>" />
 					<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
 
 					<input type="hidden" name="<?= $name ?>" value="<?= esc_attr($img_ident) ?>">
@@ -545,14 +542,19 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 							$wrap.on( 'click', '.set_img', function(){
 
-								if( frame ){ frame.open(); return; }
+								var post_id = $(this).data('post_id') || null
+
+								//if( frame && frame.post_id === post_id ){
+								//	frame.open();
+								//	return;
+								//}
 
 								frame = wp.media.frames.kmbframe = wp.media({
 									title   : '<?= __( 'Add Media' ) ?>',
 									// Library WordPress query arguments.
 									library : {
-										type: 'image',
-										uploadedTo: null
+										type       : 'image',
+										uploadedTo : post_id
 									},
 									multiple: false,
 									button: {
@@ -573,6 +575,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 								});
 
 								frame.open();
+								//frame.post_id = post_id // save
 							});
 
 							$wrap.on( 'click', '.del_img', function(){
