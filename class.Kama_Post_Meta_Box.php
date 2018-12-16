@@ -220,6 +220,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				// wp_editor, hidden. Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
 				// 'sep' визуальный разделитель, для него нужно указать `title` и можно указать `attr=style="свои стили"`.
 				// Чтобы быстро указать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
+				// Для типа `image` можно указать тип сохраняемого значения в `options`: 'options'=>'url'. По умолчанию тип = id.
 				// По умолчанию 'text'.
 				'title'         => '', // заголовок метаполя
 				'desc'          => '', // описание для поля. Можно указать функцию/замыкание, она получит параметры: $post, $meta_key, $val. С версии 1.9.1
@@ -230,6 +231,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'val'           => '', // значение по умолчанию, если нет сохраненного.
 				'options'       => '', // массив: array('значение'=>'название'). Варианты для select, radio, или аргументы для wp_editor
 				// Для 'checkbox' станет значением атрибута value.
+				// Для 'image' указывается тип сохраняемого значения, может быть: id, url.
+
 				'callback'      => '', // название функции, которая отвечает за вывод поля.
 				// если указана, то ни один параметр не учитывается и за вывод полностью отвечает указанная функция.
 				// Все параметры передаются ей... Получит параметры:
@@ -384,7 +387,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			}
 			// image
 			elseif( 'image' === $rg->type ){
-				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name) );
+				$usetype = $rg->options ? $rg->options[0] : 'id';
+				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name, $usetype) );
 			}
 			// text, email, number, url, tel, color, password, date, month, week, range
 			else {
@@ -502,24 +506,31 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
 		}
 
-		static function _image_type_media_selector( $img_id, $name ){
+		static function _image_type_media_selector( $img_ident, $name, $usetype = 'id' ){
 			wp_enqueue_media();
 
-			if( ! $img_id = intval( $img_id ) ) $img_id = '';
+			if( is_numeric($img_ident) )
+				$src = $img_ident ? wp_get_attachment_url( $img_ident ) : '';
+			else
+				$src = $img_ident;
 
-			$src = $img_id ? wp_get_attachment_url($img_id) : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+			if( ! $src )
+				$src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 			ob_start();
 			?>
-			<span class="kmb_img_wrap" style="display:flex; align-items:center;">
-				<img src="<?= $src ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
+			<span class="kmb_img_wrap" data-usetype="<?= esc_attr($usetype) ?>" style="display:flex; align-items:center;">
+				<img src="<?= esc_url($src) ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
 				<span>
-					<input class="set_img button button-small" type="button" value="<?= $img_id ? __('Change image') : __('Choose image')?>" />
+					<input class="set_img button button-small" type="button" value="<?= esc_attr($img_ident) ? __('Change image') : __('Choose image')?>" />
 					<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
-					<input type="hidden" name="<?= $name ?>" value="<?= $img_id ?>">
+
+					<input type="hidden" name="<?= $name ?>" value="<?= esc_attr($img_ident) ?>">
 				</span>
 			</span>
 			<?php
+
 			static $once;
 			if( ! $once && $once = 1 ){
 				add_action( 'admin_print_footer_scripts', function(){
@@ -552,11 +563,13 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 								frame.on( 'select', function() {
 									attachment = frame.state().get('selection').first().toJSON();
 									$img.attr( 'src', attachment.url );
-									$input.val(attachment.id);
+
+									$wrap.data('usetype') === 'url' ? $input.val( attachment.url ) : $input.val( attachment.id );
 								});
 
 								frame.on( 'open', function(){
-									if( $input.val() ) frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
+									if( $input.val() )
+										frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
 								});
 
 								frame.open();
@@ -581,7 +594,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 /**
 Changelog:
 
-1.9.5 (16.12.2018) - Новый синтаксис указать отдельные элементы шаблона. Мелкие правки кода.
+1.9.5 (16.12.2018) - Новый синтаксис указать отдельные элементы шаблона. Для типа `image` можно указать тип сохраняемого значения. Мелкие правки кода.
 1.9.4 (28.11.2018) - Новые типы полей `sep` и `image`.
 1.9.3 (16.09.2018) - Новый параметр $meta_key передаваемый фукцнии 'disable_func' для поля.
 1.9.2 (26.04.2018) - Проверка параметра поля 'disable_func' при сохранении поля. Новые параметр 'cap' для метабокса и отдельно для полей.
