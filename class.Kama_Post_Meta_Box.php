@@ -223,7 +223,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				// Для типа `image` можно указать тип сохраняемого значения в `options`: 'options'=>'url'. По умолчанию тип = id.
 				// По умолчанию 'text'.
 				'title'         => '', // заголовок метаполя
-				'desc'          => '', // описание для поля. Можно указать функцию/замыкание, она получит параметры: $post, $meta_key, $val. С версии 1.9.1
+				'desc'          => '', // описание для поля. Можно указать функцию/замыкание, она получит параметры: $post, $meta_key, $val, $name.
 				'placeholder'   => '', // атрибут placeholder
 				'id'            => '', // атрибут id. По умолчанию: $this->opt->id .'_'. $key
 				'class'         => '', // атрибут class: добавляется в input, textarea, select. Для checkbox, radio в оборачивающий label
@@ -296,9 +296,9 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 			$out = '';
 
-			$fn__desc = function() use( $rg, $post, $meta_key ){
+			$fn__desc = function() use( $rg, $post, $meta_key, $name ){
 				if( ! $rg->desc ) return '';
-				$desc = is_callable( $rg->desc ) ? call_user_func($rg->desc, $post, $meta_key, $rg->val ) : $rg->desc;
+				$desc = is_callable( $rg->desc ) ? call_user_func_array($rg->desc, [ $post, $meta_key, $rg->val, $name ] ) : $rg->desc;
 				return sprintf( $rg->desc_patt, $desc );
 			};
 
