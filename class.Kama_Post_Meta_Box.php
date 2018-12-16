@@ -1,7 +1,7 @@
 <?php
 
 if( ! class_exists('Kama_Post_Meta_Box') ){
-	
+
 	/**
 	 * Создает блок произвольных полей для указанных типов записей.
 	 *
@@ -17,8 +17,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 	 * Блок выводиться и метаполя сохраняются для юзеров с правом редактировать текущую запись.
 	 *
 	 * PHP: 5.3+
-	 * 
-	 * @version 1.9.4
+	 *
+	 * @version 1.9.5
 	 */
 	class Kama_Post_Meta_Box {
 
@@ -33,9 +33,9 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 		 */
 		function __construct( $opt ){
 
-			$defaults = array(
+			$defaults = [
 				'id'         => '',       // динетификатор блока. Используется как префикс для названия метаполя.
-										  // начните идент. с '_': '_foo', чтобы ID не был префиксом в названии метаполей.
+				// начните идент. с '_': '_foo', чтобы ID не был префиксом в названии метаполей.
 				'title'      => '',       // заголовок блока
 				'desc'       => '',       // описание для метабокса. Можно указать функцию/замыкание, она получит $post. С версии 1.9.1
 				'post_type'  => '',       // строка/массив. Типы записей для которых добавляется блок: array('post','page'). По умолчанию: '' - для всех типов записей.
@@ -43,26 +43,26 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'context'    => 'normal', // Место где должен показываться блок ('normal', 'advanced' или 'side').
 
 				'disable_func'  => '',    // функция отключения метабокса во время вызова самого метабокса.
-				                          // Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен. Передает объект поста.
+				// Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен. Передает объект поста.
 
 				'cap'           => '',    // название права пользователя, чтобы показывать метабокс.
 
 				'save_sanitize' => '',    // Функция очистки сохраняемых в БД полей. Получает 2 параметра: $metas - все поля для очистки и $post_id
 
 				'theme' => 'table',       // тема оформления. Может быть: 'table', 'line' или массив паттернов полей/отдельного поля (см. параметр $theme_options).
-										  // при указании массива за основу будут взяты паттерны темы 'line'.
-										  // еще изменить тему можно через фильтр 'kp_metabox_theme' - удобен для общего изменения темы для всех метабосов.
+				// при указании массива за основу будут взяты паттерны темы 'line'.
+				// еще изменить тему можно через фильтр 'kp_metabox_theme' - удобен для общего изменения темы для всех метабосов.
 
 				// метаполя. Параметры смотрите ниже в методе field()
-				'fields'     => array(
-					'foo' => array('title'=>'Первое метаполе' ),
-					'bar' => array('title'=>'Второе метаполе' ),
-				),
-			);
+				'fields'     => [
+					'foo' => [ 'title' =>'Первое метаполе' ],
+					'bar' => [ 'title' =>'Второе метаполе' ],
+				],
+			];
 
 			$this->opt = (object) array_merge( $defaults, $opt );
 
-			add_action( 'init', array( $this, 'init_hooks' ), 20 );
+			add_action( 'init', [ $this, 'init_hooks' ], 20 );
 		}
 
 		## хуки инициализации, вешается на хук init чтобы текущий пользователь уже был установлен
@@ -72,44 +72,59 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				return;
 
 			// темы оформления
-			if(1){
+			if( 'theme_options' ){
+				$theme_options = [];
+				$opt_theme     = & $this->opt->theme;
+
 				// тема 'line'
-				$theme_options = array(
-					'css'         => '',
-									 // CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
-					'fields_wrap' => '%s',
-									 // '%s' будет заменено на html всех полей
-					'field_wrap'  => '<p class="%1$s">%2$s</p>',
-									 // '%2$s' будет заменено на html поля (вместе с заголовком, полем и описанием)
-					'title_patt'  => '<strong class="tit"><label>%s</label></strong>',
-									 // '%s' будет заменено на заголовок
-					'field_patt'  => '%s',
-									 // '%s' будет заменено на HTML поля (вместе с описанием)
-					'desc_patt'   => '<br><span class="description" style="opacity:0.6;">%s</span>',
-									 // '%s' будет заменено на текст описания
-				);
+				if( $opt_theme === 'line'
+				    || (is_array($opt_theme) && key($opt_theme) === 'line' && ($opt_theme = $opt_theme['line']))
+				){
+					$theme_options = [
+						// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
+						'css'         => '',
+						// '%s' будет заменено на html всех полей
+						'fields_wrap' => '%s',
+						// '%2$s' будет заменено на html поля (вместе с заголовком, полем и описанием)
+						'field_wrap'  => '<p class="%1$s">%2$s</p>',
+						// '%s' будет заменено на заголовок
+						'title_patt'  => '<strong class="tit"><label>%s</label></strong>',
+						// '%s' будет заменено на HTML поля (вместе с описанием)
+						'field_patt'  => '%s',
+						// '%s' будет заменено на текст описания
+						'desc_patt'   => '<br><span class="description" style="opacity:0.6;">%s</span>',
+					];
+				}
 
 				// тема 'table'
-				if( $this->opt->theme === 'table' ){
-					$theme_options = array(
+				if( $opt_theme === 'table'
+				    || (is_array($opt_theme) && key($opt_theme) === 'table' && ($opt_theme = $opt_theme['table']))
+				){
+					$theme_options = [
 						'css'         => '.kpmb-table td{ padding:.6em .5em; } .kpmb-table tr:hover{ background:rgba(0,0,0,.03); }',
 						'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
 						'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
 						'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
 						'field_patt'  => '<td class="field">%s</td>',
 						'desc_patt'   => '<br><span class="description" style="opacity:0.8;">%s</span>',
-					);
+					];
 				}
 
 				// позволяет изменить отдельные поля темы оформелния метабокса
-				if( is_array($this->opt->theme) )
-					$theme_options = array_merge( $theme_options, $this->opt->theme );
+				if( is_array($opt_theme) ){
+					$theme_options = array_merge( $theme_options, $opt_theme );
+				}
 
 				// для изменения темы через фильтр
-				$this->opt->theme = apply_filters( 'kp_metabox_theme', $theme_options, $this->opt );
+				$opt_theme = apply_filters( 'kp_metabox_theme', $theme_options, $this->opt );
 
-				// добавим все переменные из theme в опции, если в опциях уже есть переменная, то она остается как есть
-				foreach( $this->opt->theme as $kk => $vv ) if( ! isset($this->opt->{$kk}) ) $this->opt->{$kk} = $vv;
+				// добавим все переменные из theme в опции.
+				// Если в опциях уже есть переменная, то она остается как есть (это позволяет изменить отдельный элемент темы).
+				// Или отдельный элемент темы можно поменять так: 'theme' => [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ],
+				foreach( $opt_theme as $kk => $vv ){
+					if( ! isset($this->opt->{$kk}) )
+						$this->opt->{$kk} = $vv;
+				}
 			}
 
 			// создадим уникальный ID объекта
@@ -123,14 +138,14 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			// сохраним ссылку на экземпляр, чтобы к нему был доступ
 			self::$instances[ $this->opt->id ][ $this->id ] = &$this;
 
-			add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ), 10, 2 );
-			add_action( 'save_post', array( $this, 'meta_box_save' ), 1, 2 );
+			add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ], 10, 2 );
+			add_action( 'save_post', [ $this, 'meta_box_save' ], 1, 2 );
 		}
 
 		function add_meta_box( $post_type, $post ){
 
 			// может отключить метабокс?
-			if( in_array( $post_type, array('comment','link')) ) return;
+			if( in_array( $post_type, [ 'comment','link' ] ) ) return;
 			if( ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID ) ) return;
 
 			$opt = $this->opt; // short love
@@ -144,14 +159,14 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			// if WP < 4.4
 			if( is_array($p_types) && version_compare( $GLOBALS['wp_version'], '4.4', '<' ) ){
 				foreach( $p_types as $p_type )
-					add_meta_box( $this->id, $opt->title, array($this, 'meta_box'), $p_type, $opt->context, $opt->priority );
+					add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_type, $opt->context, $opt->priority );
 			}
 			else
-				add_meta_box( $this->id, $opt->title, array($this, 'meta_box'), $p_types, $opt->context, $opt->priority );
+				add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_types, $opt->context, $opt->priority );
 
 			// добавим css класс к метабоксу
 			// apply_filters( "postbox_classes_{$page}_{$id}", $classes );
-			add_filter( "postbox_classes_{$post_type}_{$this->id}", array($this, '_postbox_classes_add') );
+			add_filter( "postbox_classes_{$post_type}_{$this->id}", [ $this, '_postbox_classes_add' ] );
 		}
 
 		/**
@@ -171,7 +186,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				$args['key'] = $key;
 
 				$field_wrap = & $this->opt->field_wrap;
-				if( @ $args['type'] == 'wp_editor' )  $field_wrap = str_replace(array('<p ','</p>'), array('<div ','</div><br>'), $field_wrap );
+				if( @ $args['type'] == 'wp_editor' )  $field_wrap = str_replace( [ '<p ','</p>' ], [ '<div ','</div><br>' ], $field_wrap );
 
 				if( @ $args['type'] == 'hidden' )
 					$hidden_out .= $this->field( $args, $post );
@@ -185,10 +200,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				$metabox_desc = is_callable($this->opt->desc) ? call_user_func($this->opt->desc, $post) : '<p class="description">'. $this->opt->desc .'</p>';
 
 			echo ( $this->opt->css ? '<style>'. $this->opt->css .'</style>' : '' ) .
-				$metabox_desc .
-				$hidden_out .
-				sprintf( (@ $this->opt->fields_wrap ?: '%s'), $fields_out ) .
-				'<div class="clear"></div>';
+			     $metabox_desc .
+			     $hidden_out .
+			     sprintf( (@ $this->opt->fields_wrap ?: '%s'), $fields_out ) .
+			     '<div class="clear"></div>';
 		}
 
 		/**
@@ -200,12 +215,12 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 		 */
 		function field( $args, $post ){
 
-			$def = array(
-				'type'          => '', // тип поля: 'text', 'textarea', 'select', 'checkbox', 'radio', 'image',
-									   // 'wp_editor', 'hidden' или другое (email, number).
-				                       // 'sep' визуальный разделитель, для него нужно указать `title` и можно указать `attr=style="свои стили"`.
-				                       // Чтобы быстро указать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
-				                       // По умолчанию 'text'.
+			$def = [
+				'type'          => '', // тип поля: text, textarea, select, checkbox, radio, image,
+				// wp_editor, hidden. Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
+				// 'sep' визуальный разделитель, для него нужно указать `title` и можно указать `attr=style="свои стили"`.
+				// Чтобы быстро указать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
+				// По умолчанию 'text'.
 				'title'         => '', // заголовок метаполя
 				'desc'          => '', // описание для поля. Можно указать функцию/замыкание, она получит параметры: $post, $meta_key, $val. С версии 1.9.1
 				'placeholder'   => '', // атрибут placeholder
@@ -214,25 +229,25 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'attr'          => '', // любая строка, будет расположена внутри тега. Для создания атрибутов. Пр: style="width:100%;"
 				'val'           => '', // значение по умолчанию, если нет сохраненного.
 				'options'       => '', // массив: array('значение'=>'название'). Варианты для select, radio, или аргументы для wp_editor
-									   // Для 'checkbox' станет значением атрибута value.
+				// Для 'checkbox' станет значением атрибута value.
 				'callback'      => '', // название функции, которая отвечает за вывод поля.
-									   // если указана, то ни один параметр не учитывается и за вывод полностью отвечает указанная функция.
-									   // Все параметры передаются ей... Получит параметры:
-									   // $args - все параметры указанные тут
-									   // $post - объект WP_Post текущей записи
-									   // $name - название атрибута 'name' (название полей собираются в массив)
-									   // $val - атрибут 'value' текущего поля
+				// если указана, то ни один параметр не учитывается и за вывод полностью отвечает указанная функция.
+				// Все параметры передаются ей... Получит параметры:
+				// $args - все параметры указанные тут
+				// $post - объект WP_Post текущей записи
+				// $name - название атрибута 'name' (название полей собираются в массив)
+				// $val - атрибут 'value' текущего поля
 
 				'sanitize_func' => '', // функция очистки данных при сохранении - название функции или Closure. Укажите 'none', чтобы не очищать данные...
-									   // работает, только если не установлен глобальный параметр 'save_sanitize'...
-									   // получит параметр $value - сохраняемое значение поля.
+				// работает, только если не установлен глобальный параметр 'save_sanitize'...
+				// получит параметр $value - сохраняемое значение поля.
 				'output_func'   => '', // функция обработки значения, перед выводом в поле.
-									   // получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
+				// получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
 				'update_func'   => '', // функция сохранения значения в метаполя.
-									   // получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
+				// получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
 
 				'disable_func'  => '', // функция отключения поля. Если не false/null/0/array() - что-либо вернет, то поле не будет выведено.
-									   // Получает парамтры: $post, $meta_key
+				// Получает парамтры: $post, $meta_key
 
 				'cap'           => '', // название права пользователя, чтобы видеть и изменять поле.
 
@@ -241,7 +256,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'title_patt'    => '', // Обязательный! Автоматический
 				'field_patt'    => '', // Обязательный! Автоматический
 				'desc_patt'     => '', // Обязательный! Автоматический
-			);
+			];
 
 			$rg = (object) array_merge( $def, $args );
 
@@ -294,11 +309,11 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 			// произвольная функция
 			if( is_callable( $rg->callback ) ){
-				$out .= $_title . $fn__field( call_user_func_array( $rg->callback, array( $args, $post, $name, $rg->val ) ) );
+				$out .= $_title . $fn__field( call_user_func_array( $rg->callback, [ $args, $post, $name, $rg->val ] ) );
 			}
 			// wp_editor
-			elseif( $rg->type === 'wp_editor' ){
-				$ed_args = array_merge( array(
+			elseif( 'wp_editor' === $rg->type ){
+				$ed_args = array_merge( [
 					'textarea_name'    => $name, //нужно указывать!
 					'editor_class'     => $rg->class,
 					// изменяемое
@@ -312,7 +327,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 					'quicktags'        => 1,
 					'media_buttons'    => false,
 					'drag_drop_upload' => false,
-				), $rg->options );
+				], $rg->options );
 
 				ob_start();
 				wp_editor( $rg->val, $rg->id, $ed_args );
@@ -321,12 +336,12 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				$out .= $_title . $fn__field( $wp_editor . $fn__desc() );
 			}
 			// textarea
-			elseif( $rg->type === 'textarea' ){
+			elseif( 'textarea' === $rg->type ){
 				$_style = (false === strpos($rg->attr,'style=')) ? ' style="width:98%;"' : '';
 				$out .= $_title . $fn__field('<textarea '. $rg->attr . $_class . $pholder . $_style .'  id="'. $rg->id .'" name="'. $name .'">'. esc_textarea($rg->val) .'</textarea>'. $fn__desc() );
 			}
 			// select
-			elseif( $rg->type === 'select' ){
+			elseif( 'select' === $rg->type ){
 				$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // ассоциативный или нет?
 				$_options = array();
 				foreach( $rg->options as $v => $l ){
@@ -337,7 +352,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				$out .= $_title . $fn__field('<select '. $rg->attr . $_class .' id="'. $rg->id .'" name="'. $name .'">' . implode("\n", $_options ) . '</select>' . $fn__desc() );
 			}
 			// checkbox
-			elseif( $rg->type === 'checkbox' ){
+			elseif( 'checkbox' === $rg->type ){
 				$out .= $_title . $fn__field('
 				<label '. $rg->attr . $_class .'>
 					<input type="hidden" name="'. $name .'" value="">
@@ -346,7 +361,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				</label>');
 			}
 			// radio
-			elseif( $rg->type === 'radio' ){
+			elseif( 'radio' === $rg->type ){
 				$radios = array();
 				foreach( $rg->options as $v => $l )
 					$radios[] = '<label '. $rg->attr . $_class .'><input type="radio" name="'. $name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'</label> ';
@@ -354,7 +369,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				$out .= $_title . $fn__field('<span class="radios">'. implode("\n", $radios ) .'</span>'. $fn__desc() );
 			}
 			// sep (separator)
-			elseif( $rg->type === 'sep' ){
+			elseif( 'sep' === $rg->type ){
 				$_style = 'font-weight:600; ';
 				if( preg_match( '/style="([^"]+)"/', $rg->attr, $mm ) ) $_style .= $mm[1];
 
@@ -364,14 +379,14 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 					$out = '<span style="display:block; padding:1em 0; font-size:110%; '. $_style .'">'. $rg->title .'</span>';
 			}
 			// hidden
-			elseif( $rg->type === 'hidden' ){
+			elseif( 'hidden' === $rg->type ){
 				$out .= '<input type="'. $rg->type .'" id="'. $rg->id .'" name="'. $name .'" value="'. esc_attr($rg->val) .'" title="'. esc_attr($rg->title) .'">';
 			}
 			// image
-			elseif( $rg->type == 'image' ){
-				$out .= $_title . $fn__field( self::_media_selector($rg->val, $name) );
+			elseif( 'image' === $rg->type ){
+				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name) );
 			}
-			// text
+			// text, email, number, url, tel, color, password, date, month, week, range
 			else {
 				$_style = ( $rg->type === 'text' && false === strpos($rg->attr, 'style=') ) ? ' style="width:100%;"' : '';
 
@@ -388,10 +403,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 		 */
 		function meta_box_save( $post_id, $post ){
 
-			if(	   ! ( $save_metadata = @ $_POST["{$this->id}_meta"] )                                        // нет данных
-				|| ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE  )                                           // выходим, если это автосохр.
-				|| ! wp_verify_nonce( $_POST['_wpnonce'], 'update-post_'. $post_id )                          // nonce проверка
-				|| ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type ) ) // не подходящий тип записи
+			if(	! ( $save_metadata = @ $_POST["{$this->id}_meta"] )                                        // нет данных
+			       || ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE  )                                           // выходим, если это автосохр.
+			       || ! wp_verify_nonce( $_POST['_wpnonce'], 'update-post_'. $post_id )                          // nonce проверка
+			       || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type ) ) // не подходящий тип записи
 			)
 				return;
 
@@ -416,10 +431,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 
 			// Очистка
-			if(1){
+			if( 'sanitize' ){
 				// своя функция очистки
 				if( is_callable($this->opt->save_sanitize) ){
-					$save_metadata = call_user_func_array( $this->opt->save_sanitize, array( $save_metadata, $post_id, $fields_data ) );
+					$save_metadata = call_user_func_array( $this->opt->save_sanitize, [ $save_metadata, $post_id, $fields_data ] );
 					$sanitized = true;
 				}
 				// хук очистки
@@ -449,7 +464,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 							elseif( $type === 'email' )    $value = sanitize_email( $value );
 							elseif( $type === 'password' ) $value = $value;
 							// wp_editor, textarea
-							elseif( in_array( $type, array('wp_editor','textarea'), true ) ){
+							elseif( in_array( $type, [ 'wp_editor','textarea' ], true ) ){
 								$value = addslashes( wp_kses( stripslashes( $value ), 'post' ) ); // default ?
 							}
 							// text, radio, checkbox, color, date, month, tel, time, url
@@ -487,7 +502,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
 		}
 
-		static function _media_selector( $img_id, $name ){
+		static function _image_type_media_selector( $img_id, $name ){
 			wp_enqueue_media();
 
 			if( ! $img_id = intval( $img_id ) ) $img_id = '';
@@ -510,48 +525,48 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				add_action( 'admin_print_footer_scripts', function(){
 					?>
 					<script>
-					$('.kmb_img_wrap').each(function(){
+						$('.kmb_img_wrap').each(function(){
 
-						var frame,
-							$wrap = $(this),
-							$img   = $wrap.find('img'),
-							$input = $wrap.find('input[type="hidden"]');
+							var frame,
+								$wrap = $(this),
+								$img   = $wrap.find('img'),
+								$input = $wrap.find('input[type="hidden"]');
 
-						$wrap.on( 'click', '.set_img', function(){
+							$wrap.on( 'click', '.set_img', function(){
 
-							if( frame ){ frame.open(); return; }
+								if( frame ){ frame.open(); return; }
 
-							frame = wp.media.frames.kmbframe = wp.media({
-								title   : '<?= __( 'Add Media' ) ?>',
-								// Library WordPress query arguments.
-								library : {
-									type: 'image',
-									uploadedTo: null
-								},
-								multiple: false,
-								button: {
-									text: '<?= __( 'Apply' ) ?>'
-								}
+								frame = wp.media.frames.kmbframe = wp.media({
+									title   : '<?= __( 'Add Media' ) ?>',
+									// Library WordPress query arguments.
+									library : {
+										type: 'image',
+										uploadedTo: null
+									},
+									multiple: false,
+									button: {
+										text: '<?= __( 'Apply' ) ?>'
+									}
+								});
+
+								frame.on( 'select', function() {
+									attachment = frame.state().get('selection').first().toJSON();
+									$img.attr( 'src', attachment.url );
+									$input.val(attachment.id);
+								});
+
+								frame.on( 'open', function(){
+									if( $input.val() ) frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
+								});
+
+								frame.open();
 							});
 
-							frame.on( 'select', function() {
-								attachment = frame.state().get('selection').first().toJSON();
-								$img.attr( 'src', attachment.url );
-								$input.val(attachment.id);
+							$wrap.on( 'click', '.del_img', function(){
+								$img.attr( 'src', '' );
+								$input.val('');
 							});
-
-							frame.on( 'open', function(){
-								if( $input.val() ) frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
-							});
-
-							frame.open();
-						});
-
-						$wrap.on( 'click', '.del_img', function(){
-							$img.attr( 'src', '' );
-							$input.val('');
-						});
-					})
+						})
 					</script>
 					<?php
 				}, 99 );
@@ -566,21 +581,22 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 /**
 Changelog:
 
+1.9.5 (16.12.2018) - Новый синтаксис указать отдельные элементы шаблона. Мелкие правки кода.
 1.9.4 (28.11.2018) - Новые типы полей `sep` и `image`.
 1.9.3 (16.09.2018) - Новый параметр $meta_key передаваемый фукцнии 'disable_func' для поля.
 1.9.2 (26.04.2018) - Проверка параметра поля 'disable_func' при сохранении поля. Новые параметр 'cap' для метабокса и отдельно для полей.
 1.9.1 (2.03.2018) - Новый параметр 'desc' для всего метабокса.
-	  - Возможность изменять отдельные поля темы оформления метабокса.
-	  - Возможность передать функцию/замыкание в параметр 'desc' у поля.
+- Возможность изменять отдельные поля темы оформления метабокса.
+- Возможность передать функцию/замыкание в параметр 'desc' у поля.
 1.9.0 - Новые параметры полей: 'output_func', 'update_func' и 'disable_func'.
 1.8.0 - Баг с выводом поля, когда используется своя функция...
-	  - Параметр 'sanitize_func' для каждого поля. Чтобы можно было указать очистку отдельного поля.
-	  - Доработана очистка полей, теперь она опирается на тип поля.
+- Параметр 'sanitize_func' для каждого поля. Чтобы можно было указать очистку отдельного поля.
+- Доработана очистка полей, теперь она опирается на тип поля.
 1.7.0 - ADD: if set field 'options' parametr it becomes checkbox 'value' attribute.
-	  - remove extract() call in field() method
+- remove extract() call in field() method
 1.6.0 - FIX: closure remove bug
 1.5.0 - ADD: theme support. New parametr 'theme'. where you can set 'table' or 'line' themes.
 1.3.0 - ADD: 'disable_func' parametr - its allow to disable/enable metabox by any conditions inside edit post screen.
-	  - FIX: field 'options' parametr for <select> element: now you can set numeric array keys as option value, ex: 'options' => array( 23=>'Name', 5=>'Name 2' )
-	  - CHG: instance ID and instances save algorithm
-*/
+- FIX: field 'options' parametr for <select> element: now you can set numeric array keys as option value, ex: 'options' => array( 23=>'Name', 5=>'Name 2' )
+- CHG: instance ID and instances save algorithm
+ */
