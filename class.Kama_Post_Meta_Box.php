@@ -1,3 +1,5 @@
+<?php
+
 if( ! class_exists('Kama_Post_Meta_Box') ){
 
 	/**
@@ -47,9 +49,11 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 				'save_sanitize' => '',    // Функция очистки сохраняемых в БД полей. Получает 2 параметра: $metas - все поля для очистки и $post_id
 
-				'theme' => 'table',       // тема оформления. Может быть: 'table', 'line' или массив паттернов полей/отдельного поля (см. параметр $theme_options).
-				// при указании массива за основу будут взяты паттерны темы 'line'.
-				// еще изменить тему можно через фильтр 'kp_metabox_theme' - удобен для общего изменения темы для всех метабосов.
+				'theme' => 'table',       // тема оформления: 'table', 'line'.
+				// ИЛИ массив паттернов полей: css, fields_wrap, field_wrap, title_patt, field_patt, desc_patt.
+				// Массив указывается так: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ]
+				// ИЛИ можно прямо в параметрах (рядом с параметром theme) указать отдельный паттерн: 'desc_patt' => '<div>%s</div>'
+				// ИЛИ изменить тему можно через фильтр 'kp_metabox_theme' - удобен для общего изменения темы для всех метабоксов.
 
 				// метаполя. Параметры смотрите ниже в методе field()
 				'fields'     => [
@@ -71,14 +75,12 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 			// темы оформления
 			if( 'theme_options' ){
-				$theme_options = [];
-				$opt_theme     = & $this->opt->theme;
+
+				$opt_theme = & $this->opt->theme;
 
 				// тема 'line'
-				if( $opt_theme === 'line'
-				    || (is_array($opt_theme) && key($opt_theme) === 'line' && ($opt_theme = $opt_theme['line']))
-				){
-					$theme_options = [
+				if( 'line' === $opt_theme || ( 'line' === key($opt_theme) && ($opt_theme = $opt_theme['line']) ) ){
+					$def_opt_theme = [
 						// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
 						'css'         => '',
 						// '%s' будет заменено на html всех полей
@@ -95,10 +97,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				}
 
 				// тема 'table'
-				if( $opt_theme === 'table'
-				    || (is_array($opt_theme) && key($opt_theme) === 'table' && ($opt_theme = $opt_theme['table']))
-				){
-					$theme_options = [
+				if( 'table' === $opt_theme || ( 'table' === key($opt_theme) && ($opt_theme = $opt_theme['table']) ) ){
+					$def_opt_theme = [
 						'css'         => '.kpmb-table td{ padding:.6em .5em; } .kpmb-table tr:hover{ background:rgba(0,0,0,.03); }',
 						'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
 						'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
@@ -109,16 +109,13 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				}
 
 				// позволяет изменить отдельные поля темы оформелния метабокса
-				if( is_array($opt_theme) ){
-					$theme_options = array_merge( $theme_options, $opt_theme );
-				}
+				$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
 
 				// для изменения темы через фильтр
-				$opt_theme = apply_filters( 'kp_metabox_theme', $theme_options, $this->opt );
+				$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
 
-				// добавим все переменные из theme в опции.
-				// Если в опциях уже есть переменная, то она остается как есть (это позволяет изменить отдельный элемент темы).
-				// Или отдельный элемент темы можно поменять так: 'theme' => [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ],
+				// переменные theme в общие параметры.
+				// Если в параметрах уже есть переменная, то она остается как есть (это позволяет изменить отдельный элемент темы).
 				foreach( $opt_theme as $kk => $vv ){
 					if( ! isset($this->opt->{$kk}) )
 						$this->opt->{$kk} = $vv;
@@ -220,7 +217,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				// Чтобы быстро указать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
 				// Для типа `image` можно указать тип сохраняемого значения в `options`: 'options'=>'url'. По умолчанию тип = id.
 				// По умолчанию 'text'.
-				
+
 				'title'         => '', // заголовок метаполя
 				'desc'          => '', // описание для поля. Можно указать функцию/замыкание, она получит параметры: $post, $meta_key, $val, $name.
 				'placeholder'   => '', // атрибут placeholder
@@ -240,10 +237,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				// Укажите 'none', чтобы не очищать данные...
 				// работает, только если не установлен глобальный параметр 'save_sanitize'...
 				// получит параметр $value - сохраняемое значение поля.
-				
+
 				'output_func'   => '', // функция обработки значения, перед выводом в поле.
 				// получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
-				
+
 				'update_func'   => '', // функция сохранения значения в метаполя.
 				// получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
 
@@ -505,7 +502,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
 		}
 
-		static function _image_type_media_selector( $img_ident, $name, $usetype = 'id', $post ){
+		## $usetype может быть: id, url
+		static function _image_type_media_selector( $img_ident, $name, $usetype, $post ){
 			wp_enqueue_media();
 
 			if( is_numeric($img_ident) )
