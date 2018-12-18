@@ -51,8 +51,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 				'theme' => 'table',       // тема оформления: 'table', 'line'.
 				// ИЛИ массив паттернов полей: css, fields_wrap, field_wrap, title_patt, field_patt, desc_patt.
-				// Массив указывается так: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ]
-				// ИЛИ можно прямо в параметрах (рядом с параметром theme) указать отдельный паттерн: 'desc_patt' => '<div>%s</div>'
+				// Массив указывается так: [ 'desc_patt' => '<div>%s</div>' ] (за овнову будет взята тема line)
+				// Массив указывается так: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ] (за овнову будет взята тема table)
 				// ИЛИ изменить тему можно через фильтр 'kp_metabox_theme' - удобен для общего изменения темы для всех метабоксов.
 
 				// метаполя. Параметры смотрите ниже в методе field()
@@ -78,9 +78,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 				$opt_theme = & $this->opt->theme;
 
-				// тема 'line'
-				if( 'line' === $opt_theme || ( 'line' === key($opt_theme) && ($opt_theme = $opt_theme['line']) ) ){
-					$def_opt_theme = [
+				$def_opt_theme = [
+					'line' => [
 						// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
 						'css'         => '',
 						// '%s' будет заменено на html всех полей
@@ -93,22 +92,35 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 						'field_patt'  => '%s',
 						// '%s' будет заменено на текст описания
 						'desc_patt'   => '<br><span class="description" style="opacity:0.6;">%s</span>',
-					];
-				}
-
-				// тема 'table'
-				if( 'table' === $opt_theme || ( 'table' === key($opt_theme) && ($opt_theme = $opt_theme['table']) ) ){
-					$def_opt_theme = [
+					],
+					'table' => [
 						'css'         => '.kpmb-table td{ padding:.6em .5em; } .kpmb-table tr:hover{ background:rgba(0,0,0,.03); }',
 						'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
 						'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
 						'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
 						'field_patt'  => '<td class="field">%s</td>',
 						'desc_patt'   => '<br><span class="description" style="opacity:0.8;">%s</span>',
-					];
+					],
+				];
+
+				if( is_string($opt_theme) ){
+					$def_opt_theme = $def_opt_theme[ $opt_theme ];
+				}
+				// позволяет изменить отдельные поля темы оформелния метабокса
+				else {
+					$opt_theme_key = key( $opt_theme ); // индекс массива
+
+					// в индексе указана не тема: [ 'desc_patt' => '<div>%s</div>' ]
+					if( ! in_array( $opt_theme_key, array_keys($def_opt_theme) ) ){
+						$def_opt_theme = $def_opt_theme['line']; // основа темы
+					}
+					// в индексе указана тема: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ]
+					else {
+						$def_opt_theme = $def_opt_theme[ $opt_theme_key ]; // основа темы
+						$opt_theme     = $opt_theme[ $opt_theme_key ];
+					}
 				}
 
-				// позволяет изменить отдельные поля темы оформелния метабокса
 				$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
 
 				// для изменения темы через фильтр
@@ -211,10 +223,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 		function field( $args, $post ){
 
 			$def = [
-				'type'          => '', // тип поля: text, textarea, select, checkbox, radio, image,
-				// wp_editor, hidden. Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
-				// 'sep' визуальный разделитель, для него нужно указать `title` и можно указать `attr=style="свои стили"`.
-				// Чтобы быстро указать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
+				'type'          => '', // тип поля: textarea, select, checkbox, radio, image, wp_editor, hidden, sep_*.
+				// Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
+				// 'sep' - визуальный разделитель, для него нужно указать `title` и можно указать `'attr'=>'style="свои стили"'`.
+				// 'sep' - чтобы удобнее указывать тип 'sep' начните ключ поля с `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
 				// Для типа `image` можно указать тип сохраняемого значения в `options`: 'options'=>'url'. По умолчанию тип = id.
 				// По умолчанию 'text'.
 
