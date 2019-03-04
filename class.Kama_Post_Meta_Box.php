@@ -18,7 +18,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 	 *
 	 * PHP: 5.3+
 	 *
-	 * @version 1.9.5.1
+	 * @version 1.9.6
 	 */
 	class Kama_Post_Meta_Box {
 
@@ -41,6 +41,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'desc'       => '',       // описание для метабокса. Можно указать функцию/замыкание, она получит $post. С версии 1.9.1
 				'post_type'  => '',       // строка/массив. Типы записей для которых добавляется блок: array('post','page').
 				// По умолчанию: '' - для всех типов записей.
+				'post_type_feature' => '', // строка. возможность которая должна быть у типа записи,
+				// чтобы метабокс отобразился. См. post_type_supports()
+				'post_type_options' => '', // массив. опции типа записи, которые должны быть у типа записи чтобы метабокс отобразился.
+				// см. первый параметр get_post_types()
 
 				'priority'   => 'high',   // Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
 				'context'    => 'normal', // Место где должен показываться блок ('normal', 'advanced' или 'side').
@@ -50,7 +54,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 				'cap'           => '',    // название права пользователя, чтобы показывать метабокс.
 
-				'save_sanitize' => '',    // Функция очистки сохраняемых в БД полей. Получает 2 параметра: $metas - все поля для очистки и $post_id
+				'save_sanitize' => '',    // Функция очистки сохраняемых в БД полей. Получает 2 параметра:
+				// $metas - все поля для очистки и $post_id
 
 				'theme' => 'table',       // тема оформления: 'table', 'line'.
 				// ИЛИ массив паттернов полей: css, fields_wrap, field_wrap, title_patt, field_patt, desc_patt.
@@ -67,10 +72,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 			$this->opt = (object) array_merge( $defaults, $opt );
 
+			// хуки инициализации, вешается на хук init чтобы текущий пользователь уже был установлен
 			add_action( 'init', [ $this, 'init_hooks' ], 20 );
 		}
 
-		## хуки инициализации, вешается на хук init чтобы текущий пользователь уже был установлен
 		function init_hooks(){
 			// может метабокс отключен по праву
 			if( $this->opt->cap && ! current_user_can( $this->opt->cap ) )
@@ -146,7 +151,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			$this->id = substr( md5(serialize($_opt)), 0, 7 ); // ID экземпляра
 
 			// сохраним ссылку на экземпляр, чтобы к нему был доступ
-			self::$instances[ $this->opt->id ][ $this->id ] = &$this;
+			self::$instances[ $this->opt->id ][ $this->id ] = & $this;
 
 			add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ], 10, 2 );
 			add_action( 'save_post', [ $this, 'meta_box_save' ], 1, 2 );
@@ -154,14 +159,16 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 		function add_meta_box( $post_type, $post ){
 
-			// может отключить метабокс?
-			if( in_array( $post_type, [ 'comment','link' ] ) ) return;
-			if( ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID ) ) return;
-
 			$opt = $this->opt; // short love
 
 			// может отключить метабокс?
-			if( $opt->disable_func && is_callable($opt->disable_func) && call_user_func( $opt->disable_func, $post ) )
+			if(
+				   in_array( $post_type, [ 'comment','link' ] )
+				|| ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID )
+				|| ( $opt->post_type_feature && ! post_type_supports( $post_type, $opt->post_type_feature ) )
+				|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ) ) )
+				|| ( $opt->disable_func && is_callable($opt->disable_func) && call_user_func( $opt->disable_func, $post ) )
+			)
 				return;
 
 			$p_types = $opt->post_type ?: $post_type;
@@ -614,6 +621,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 /**
 Changelog:
 
+1.9.6 (04.03.2019) - Новые параметры: `post_type_feature` и `post_type_options`.
 1.9.5 (16.12.2018) - Новый синтаксис указать отдельные элементы шаблона. Для типа `image` можно указать тип сохраняемого значения. Мелкие правки кода.
 1.9.4 (28.11.2018) - Новые типы полей `sep` и `image`.
 1.9.3 (16.09.2018) - Новый параметр $meta_key передаваемый фукцнии 'disable_func' для поля.
