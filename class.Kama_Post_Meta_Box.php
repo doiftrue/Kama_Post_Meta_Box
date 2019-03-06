@@ -1,6 +1,6 @@
 <?php
 
-if( ! class_exists('Kama_Post_Meta_Box') ){
+if( ! class_exists('Kama_Post_Meta_Box') ) :
 
 	/**
 	 * Создает блок произвольных полей для указанных типов записей.
@@ -18,17 +18,21 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 	 *
 	 * PHP: 5.3+
 	 *
-	 * @version 1.9.6
+	 * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
+	 *
+	 * @version 1.9.7
 	 */
 	class Kama_Post_Meta_Box {
 
 		public $opt;
+
 		public $id;
 
 		static $instances = array(); // сохраняет ссылки на все экземпляры
 
 		/**
 		 * Конструктор
+		 *
 		 * @param array $opt Опции по которым будет строиться метаблок
 		 */
 		function __construct( $opt ){
@@ -163,7 +167,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 
 			// может отключить метабокс?
 			if(
-				   in_array( $post_type, [ 'comment','link' ] )
+				in_array( $post_type, [ 'comment','link' ] )
 				|| ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID )
 				|| ( $opt->post_type_feature && ! post_type_supports( $post_type, $opt->post_type_feature ) )
 				|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ) ) )
@@ -224,15 +228,18 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 		}
 
 		/**
-		 * Выводит отдельные мета поля
-		 * @param  string $name Атрибут name
-		 * @param  array  $args Параметры поля
-		 * @param  object $post Объект текущего поста
-		 * @return string HTML код
+		 * Выводит отдельные мета поля.
+		 *
+		 * @param string  $name  Атрибут name.
+		 * @param array   $args  Параметры поля.
+		 * @param object  $post  Объект текущего поста.
+		 *
+		 * @return string|null HTML код
 		 */
 		function field( $args, $post ){
 
-			$def = [
+			$var = (object) []; // внутренние переменные этой фукнции, будут переданы в методы
+			$rg  = (object) array_merge( [
 				'type'          => '', // тип поля: textarea, select, checkbox, radio, image, wp_editor, hidden, sep_*.
 				// Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
 				// 'sep' - визуальный разделитель, для него нужно указать `title` и можно указать `'attr'=>'style="свои стили"'`.
@@ -278,50 +285,43 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 				'title_patt'    => '', // Обязательный! Автоматический
 				'field_patt'    => '', // Обязательный! Автоматический
 				'desc_patt'     => '', // Обязательный! Автоматический
-			];
+			], $args );
 
-			$rg = (object) array_merge( $def, $args );
-
-			// недостаточно прав
 			if( $rg->cap && ! current_user_can( $rg->cap ) )
-				return;
+				return null;
 
 			if( 'sep_' === substr($rg->key, 0, 4) ) $rg->type = 'sep';
 			if( ! $rg->type )                       $rg->type = 'text';
 
-			$meta_key = $this->_key_prefix() . $rg->key;
+			$var->meta_key = $this->_key_prefix() . $rg->key;
 
 			// поле отключено
-			if( $rg->disable_func && is_callable($rg->disable_func) && call_user_func( $rg->disable_func, $post, $meta_key ) )
-				return;
+			if( $rg->disable_func && is_callable($rg->disable_func) && call_user_func( $rg->disable_func, $post, $var->meta_key ) )
+				return null;
 
-			$meta_val = get_post_meta( $post->ID, $meta_key, true );
+			// meta_val
+			$rg->val = get_post_meta( $post->ID, $var->meta_key, true ) ?: $rg->val;
+			if( $rg->output_func && is_callable($rg->output_func) )
+				$rg->val = call_user_func( $rg->output_func, $post, $var->meta_key, $rg->val );
 
-			$rg->val = $meta_val ?: $rg->val;
-			if( $rg->output_func && is_callable($rg->output_func) ){
-				$rg->val = call_user_func( $rg->output_func, $post, $meta_key, $rg->val );
-			}
+			$var->name = $this->id . "_meta[$var->meta_key]";
 
-			$name    = $this->id . "_meta[$meta_key]";
-
-			$pholder = $rg->placeholder ? ' placeholder="'. esc_attr($rg->placeholder) .'"' : '';
-			$rg->id  = $rg->id ?: ($this->opt->id .'_'. $rg->key);
+			$rg->id  = $rg->id ?: ( $this->opt->id .'_'. $rg->key );
 
 			// при табличной теме, td заголовка должен выводиться всегда!
 			if( false !== strpos($rg->title_patt, '<td ') )
-				$_title = sprintf( $rg->title_patt, $rg->title ) . ($rg->title ? ' ' : '');
+				$var->title = sprintf( $rg->title_patt, $rg->title ) . ($rg->title ? ' ' : '');
 			else
-				$_title = $rg->title ? sprintf( $rg->title_patt, $rg->title ).' ' : '';
+				$var->title = $rg->title ? sprintf( $rg->title_patt, $rg->title ) .' ' : '';
 
 			$rg->options = (array) $rg->options;
 
-			$_class = $rg->class ? ' class="'. $rg->class .'"' : '';
+			$var->pholder = $rg->placeholder ? ' placeholder="'. esc_attr($rg->placeholder) .'"' : '';
+			$var->class = $rg->class ? ' class="'. $rg->class .'"' : '';
 
-			$out = '';
-
-			$fn__desc = function() use( $rg, $post, $meta_key, $name ){
+			$fn__desc = function() use ( $rg, $post, $var ){
 				if( ! $rg->desc ) return '';
-				$desc = is_callable( $rg->desc ) ? call_user_func_array($rg->desc, [ $post, $meta_key, $rg->val, $name ] ) : $rg->desc;
+				$desc = is_callable( $rg->desc ) ? call_user_func_array($rg->desc, [ $post, $var->meta_key, $rg->val, $var->name ] ) : $rg->desc;
 				return sprintf( $rg->desc_patt, $desc );
 			};
 
@@ -330,93 +330,191 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			};
 
 			// произвольная функция
-			if( is_callable( $rg->callback ) ){
-				$out .= $_title . $fn__field( call_user_func_array( $rg->callback, [ $args, $post, $name, $rg->val ] ) );
-			}
-			// wp_editor
-			elseif( 'wp_editor' === $rg->type ){
-				$ed_args = array_merge( [
-					'textarea_name'    => $name, //нужно указывать!
-					'editor_class'     => $rg->class,
-					// изменяемое
-					'wpautop'          => 1,
-					'textarea_rows'    => 5,
-					'tabindex'         => null,
-					'editor_css'       => '',
-					'teeny'            => 0,
-					'dfw'              => 0,
-					'tinymce'          => 1,
-					'quicktags'        => 1,
-					'media_buttons'    => false,
-					'drag_drop_upload' => false,
-				], $rg->options );
-
-				ob_start();
-				wp_editor( $rg->val, $rg->id, $ed_args );
-				$wp_editor = ob_get_clean();
-
-				$out .= $_title . $fn__field( $wp_editor . $fn__desc() );
-			}
-			// textarea
-			elseif( 'textarea' === $rg->type ){
-				$_style = (false === strpos($rg->attr,'style=')) ? ' style="width:98%;"' : '';
-				$out .= $_title . $fn__field('<textarea '. $rg->attr . $_class . $pholder . $_style .'  id="'. $rg->id .'" name="'. $name .'">'. esc_textarea($rg->val) .'</textarea>'. $fn__desc() );
-			}
-			// select
-			elseif( 'select' === $rg->type ){
-				$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // ассоциативный или нет?
-				$_options = array();
-				foreach( $rg->options as $v => $l ){
-					$_val       = $is_assoc ? $v : $l;
-					$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($rg->val, $_val, 0) .'>'. $l .'</option>';
-				}
-
-				$out .= $_title . $fn__field('<select '. $rg->attr . $_class .' id="'. $rg->id .'" name="'. $name .'">' . implode("\n", $_options ) . '</select>' . $fn__desc() );
-			}
-			// checkbox
-			elseif( 'checkbox' === $rg->type ){
-				$out .= $_title . $fn__field('
-				<label '. $rg->attr . $_class .'>
-					<input type="hidden" name="'. $name .'" value="">
-					<input type="checkbox" id="'. $rg->id .'" name="'. $name .'" value="'. esc_attr(reset($rg->options) ?: 1) .'" '. checked( $rg->val, (reset($rg->options) ?: 1), 0) .'>
-					'.( $rg->desc ?: '' ).'
-				</label>');
-			}
-			// radio
-			elseif( 'radio' === $rg->type ){
-				$radios = array();
-				foreach( $rg->options as $v => $l )
-					$radios[] = '<label '. $rg->attr . $_class .'><input type="radio" name="'. $name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'</label> ';
-
-				$out .= $_title . $fn__field('<span class="radios">'. implode("\n", $radios ) .'</span>'. $fn__desc() );
-			}
-			// sep (separator)
-			elseif( 'sep' === $rg->type ){
-				$_style = 'font-weight:600; ';
-				if( preg_match( '/style="([^"]+)"/', $rg->attr, $mm ) ) $_style .= $mm[1];
-
-				if( false !== strpos( $rg->field_patt, '<td' ) )
-					$out = str_replace( '<td ', '<td colspan="2" style="padding:1em .5em; '. $_style .'"', $fn__field( $rg->title ) );
-				else
-					$out = '<span style="display:block; padding:1em 0; font-size:110%; '. $_style .'">'. $rg->title .'</span>';
-			}
-			// hidden
-			elseif( 'hidden' === $rg->type ){
-				$out .= '<input type="'. $rg->type .'" id="'. $rg->id .'" name="'. $name .'" value="'. esc_attr($rg->val) .'" title="'. esc_attr($rg->title) .'">';
-			}
-			// image
-			elseif( 'image' === $rg->type ){
-				$usetype = $rg->options ? $rg->options[0] : 'id';
-				$out .= $_title . $fn__field( self::_image_type_media_selector($rg->val, $name, $usetype, $post) );
-			}
+			if( is_callable( $rg->callback ) )
+				$out = $var->title . $fn__field( call_user_func_array( $rg->callback, [ $args, $post, $var->name, $rg->val, $rg, $var ] ) );
+			// произвольный метод
+			// вызов метода `$this->field__{FIELD}()` (для возможности расширить этот класс)
+			elseif( method_exists( $this, "field__$rg->type") )
+				$out = $this->{"field__$rg->type"}( $rg, $var, $post, $fn__desc, $fn__field );
 			// text, email, number, url, tel, color, password, date, month, week, range
-			else {
-				$_style = ( $rg->type === 'text' && false === strpos($rg->attr, 'style=') ) ? ' style="width:100%;"' : '';
-
-				$out .= $_title . $fn__field('<input '. $rg->attr . $_class  . $pholder . $_style .' type="'. $rg->type .'" id="'. $rg->id .'" name="'. $name .'" value="'. esc_attr($rg->val) .'">'. $fn__desc() );
-			}
+			else
+				$out = $this->field__default( $rg, $var, $post, $fn__desc, $fn__field );
 
 			return $out;
+		}
+
+		// textarea
+		function field__textarea( $rg, $var, $post, $fn__desc, $fn__field ){
+			$_style = (false === strpos($rg->attr,'style=')) ? ' style="width:98%;"' : '';
+
+			return $var->title . $fn__field('<textarea '. $rg->attr . $var->class . $var->pholder . $_style .'  id="'. $rg->id .'" name="'. $var->name .'">'. esc_textarea($rg->val) .'</textarea>'. $fn__desc() );
+		}
+
+		// select
+		function field__select( $rg, $var, $post, $fn__desc, $fn__field ){
+			$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // ассоциативный или нет?
+			$_options = array();
+			foreach( $rg->options as $v => $l ){
+				$_val       = $is_assoc ? $v : $l;
+				$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($rg->val, $_val, 0) .'>'. $l .'</option>';
+			}
+
+			return $var->title . $fn__field('<select '. $rg->attr . $var->class .' id="'. $rg->id .'" name="'. $var->name .'">' . implode("\n", $_options ) . '</select>' . $fn__desc() );
+		}
+
+		// radio
+		function field__radio( $rg, $var, $post, $fn__desc, $fn__field ){
+			$radios = array();
+			foreach( $rg->options as $v => $l )
+				$radios[] = '<label '. $rg->attr . $var->class .'><input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'</label> ';
+
+			return $var->title . $fn__field('<span class="radios">'. implode("\n", $radios ) .'</span>'. $fn__desc() );
+		}
+
+		// checkbox
+		function field__checkbox( $rg, $var, $post, $fn__desc, $fn__field ){
+			return $var->title . $fn__field('
+				<label '. $rg->attr . $var->class .'>
+					<input type="hidden" name="'. $var->name .'" value="">
+					<input type="checkbox" id="'. $rg->id .'" name="'. $var->name .'" value="'. esc_attr(reset($rg->options) ?: 1) .'" '. checked( $rg->val, (reset($rg->options) ?: 1), 0) .'>
+					'.( $rg->desc ?: '' ).'
+				</label>');
+		}
+
+		// sep
+		function field__sep( $rg, $var, $post, $fn__desc, $fn__field ){
+			$_style = 'font-weight:600; ';
+			if( preg_match( '/style="([^"]+)"/', $rg->attr, $mm ) ) $_style .= $mm[1];
+
+			if( false !== strpos( $rg->field_patt, '<td' ) )
+				return str_replace( '<td ', '<td colspan="2" style="padding:1em .5em; '. $_style .'"', $fn__field( $rg->title ) );
+			else
+				return '<span style="display:block; padding:1em 0; font-size:110%; '. $_style .'">'. $rg->title .'</span>';
+		}
+
+		// hidden
+		function field__hidden( $rg, $var, $post, $fn__desc, $fn__field ){
+			return '<input type="'. $rg->type .'" id="'. $rg->id .'" name="'. $var->name .'" value="'. esc_attr($rg->val) .'" title="'. esc_attr($rg->title) .'">';
+		}
+
+		// text, email, number, url, tel, color, password, date, month, week, range
+		function field__default( $rg, $var, $post, $fn__desc, $fn__field ){
+			$_style   = ( $rg->type === 'text' && false === strpos($rg->attr, 'style=') ) ? ' style="width:100%;"' : '';
+
+			return $var->title . $fn__field( '<input '. $rg->attr . $var->class  . $var->pholder . $_style .' type="'. $rg->type .'" id="'. $rg->id .'" name="'. $var->name .'" value="'. esc_attr($rg->val) .'">'. $fn__desc() );
+		}
+
+		// wp_editor
+		function field__wp_editor( $rg, $var, $post, $fn__desc, $fn__field ){
+			$ed_args = array_merge( [
+				'textarea_name'    => $var->name, //нужно указывать!
+				'editor_class'     => $rg->class,
+				// изменяемое
+				'wpautop'          => 1,
+				'textarea_rows'    => 5,
+				'tabindex'         => null,
+				'editor_css'       => '',
+				'teeny'            => 0,
+				'dfw'              => 0,
+				'tinymce'          => 1,
+				'quicktags'        => 1,
+				'media_buttons'    => false,
+				'drag_drop_upload' => false,
+			], $rg->options );
+
+			ob_start();
+			wp_editor( $rg->val, $rg->id, $ed_args );
+			$wp_editor = ob_get_clean();
+
+			return $var->title . $fn__field( $wp_editor . $fn__desc() );
+		}
+
+		// image
+		function field__image( $rg, $var, $post, $fn__desc, $fn__field ){
+
+			wp_enqueue_media();
+
+			static $once;
+			if( ! $once && $once = 1 ){
+				add_action( 'admin_print_footer_scripts', function(){
+					?>
+					<script>
+					$('.kmb_img_wrap').each(function(){
+
+						var frame,
+							$wrap = $(this),
+							$img   = $wrap.find('img'),
+							$input = $wrap.find('input[type="hidden"]');
+
+						$wrap.on( 'click', '.set_img', function(){
+
+							var post_id = $(this).data('post_id') || null
+
+							//if( frame && frame.post_id === post_id ){
+							//	frame.open();
+							//	return;
+							//}
+
+							frame = wp.media.frames.kmbframe = wp.media({
+								title   : '<?= __( 'Add Media' ) ?>',
+								// Library WordPress query arguments.
+								library : {
+									type       : 'image',
+									uploadedTo : post_id
+								},
+								multiple: false,
+								button: {
+									text: '<?= __( 'Apply' ) ?>'
+								}
+							});
+
+							frame.on( 'select', function() {
+								attachment = frame.state().get('selection').first().toJSON();
+								$img.attr( 'src', attachment.url );
+
+								$wrap.data('usetype') === 'url' ? $input.val( attachment.url ) : $input.val( attachment.id );
+							});
+
+							frame.on( 'open', function(){
+								if( $input.val() )
+									frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
+							});
+
+							frame.open();
+							//frame.post_id = post_id // save
+						});
+
+						$wrap.on( 'click', '.del_img', function(){
+							$img.attr( 'src', '' );
+							$input.val('');
+						});
+					})
+					</script>
+					<?php
+				}, 99 );
+			}
+
+			$usetype = $rg->options ? $rg->options[0] : 'id'; // может быть: id, url
+
+			if( ! $src = is_numeric($rg->val) ? wp_get_attachment_url( $rg->val ) : $rg->val )
+				$src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+			ob_start();
+			?>
+			<span class="kmb_img_wrap" data-usetype="<?= esc_attr($usetype) ?>" style="display:flex; align-items:center;">
+				<img src="<?= esc_url($src) ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
+				<span>
+					<input class="set_img button button-small" type="button" value="<?= __('Set image') ?>" />
+					<input class="set_img button button-small" type="button" data-post_id="<?= $post->ID ?>" value="<?= __( 'Uploaded to this post' ) ?>" />
+					<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
+
+					<input type="hidden" name="<?= $var->name ?>" value="<?= esc_attr($rg->val) ?>">
+				</span>
+			</span>
+			<?php
+			$field = ob_get_clean();
+
+			return $var->title . $fn__field( $field );
 		}
 
 		/**
@@ -431,7 +529,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			       || ! wp_verify_nonce( $_POST['_wpnonce'], 'update-post_'. $post_id )                          // nonce проверка
 			       || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type ) ) // не подходящий тип записи
 			)
-				return;
+				return null;
 
 			// оставим только поля текущего класса (защиты от подмены поля)
 			$_key_prefix = $this->_key_prefix();
@@ -483,13 +581,13 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 							$type = !empty($fields_data[$meta_key]['type']) ? $fields_data[$meta_key]['type'] : 'text';
 
 							if(0){}
-							elseif( $type === 'number' )   $value = floatval( $value );
-							elseif( $type === 'email' )    $value = sanitize_email( $value );
-							elseif( $type === 'password' ) $value = $value;
+							elseif( $type === 'number' )
+								$value = floatval( $value );
+							elseif( $type === 'email' )
+								$value = sanitize_email( $value );
 							// wp_editor, textarea
-							elseif( in_array( $type, [ 'wp_editor','textarea' ], true ) ){
+							elseif( in_array( $type, [ 'wp_editor','textarea' ], true ) )
 								$value = addslashes( wp_kses( stripslashes( $value ), 'post' ) ); // default ?
-							}
 							// text, radio, checkbox, color, date, month, tel, time, url
 							else
 								$value = sanitize_text_field( $value );
@@ -525,119 +623,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ){
 			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
 		}
 
-		## $usetype может быть: id, url
-		static function _image_type_media_selector( $img_ident, $name, $usetype, $post ){
-			wp_enqueue_media();
-
-			if( is_numeric($img_ident) )
-				$src = $img_ident ? wp_get_attachment_url( $img_ident ) : '';
-			else
-				$src = $img_ident;
-
-
-			if( ! $src )
-				$src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-
-			ob_start();
-			?>
-			<span class="kmb_img_wrap" data-usetype="<?= esc_attr($usetype) ?>" style="display:flex; align-items:center;">
-				<img src="<?= esc_url($src) ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
-				<span>
-					<input class="set_img button button-small" type="button" value="<?= __('Set image') ?>" />
-					<input class="set_img button button-small" type="button" data-post_id="<?= $post->ID ?>" value="<?= __( 'Uploaded to this post' ) ?>" />
-					<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
-
-					<input type="hidden" name="<?= $name ?>" value="<?= esc_attr($img_ident) ?>">
-				</span>
-			</span>
-			<?php
-
-			static $once;
-			if( ! $once && $once = 1 ){
-				add_action( 'admin_print_footer_scripts', function(){
-					?>
-					<script>
-						$('.kmb_img_wrap').each(function(){
-
-							var frame,
-								$wrap = $(this),
-								$img   = $wrap.find('img'),
-								$input = $wrap.find('input[type="hidden"]');
-
-							$wrap.on( 'click', '.set_img', function(){
-
-								var post_id = $(this).data('post_id') || null
-
-								//if( frame && frame.post_id === post_id ){
-								//	frame.open();
-								//	return;
-								//}
-
-								frame = wp.media.frames.kmbframe = wp.media({
-									title   : '<?= __( 'Add Media' ) ?>',
-									// Library WordPress query arguments.
-									library : {
-										type       : 'image',
-										uploadedTo : post_id
-									},
-									multiple: false,
-									button: {
-										text: '<?= __( 'Apply' ) ?>'
-									}
-								});
-
-								frame.on( 'select', function() {
-									attachment = frame.state().get('selection').first().toJSON();
-									$img.attr( 'src', attachment.url );
-
-									$wrap.data('usetype') === 'url' ? $input.val( attachment.url ) : $input.val( attachment.id );
-								});
-
-								frame.on( 'open', function(){
-									if( $input.val() )
-										frame.state().get('selection').add( wp.media.attachment( $input.val() ) );
-								});
-
-								frame.open();
-								//frame.post_id = post_id // save
-							});
-
-							$wrap.on( 'click', '.del_img', function(){
-								$img.attr( 'src', '' );
-								$input.val('');
-							});
-						})
-					</script>
-					<?php
-				}, 99 );
-			}
-
-			return ob_get_clean();
-		}
-
 	}
-}
 
-/**
-Changelog:
+endif;
 
-1.9.6 (04.03.2019) - Новые параметры: `post_type_feature` и `post_type_options`.
-1.9.5 (16.12.2018) - Новый синтаксис указать отдельные элементы шаблона. Для типа `image` можно указать тип сохраняемого значения. Мелкие правки кода.
-1.9.4 (28.11.2018) - Новые типы полей `sep` и `image`.
-1.9.3 (16.09.2018) - Новый параметр $meta_key передаваемый фукцнии 'disable_func' для поля.
-1.9.2 (26.04.2018) - Проверка параметра поля 'disable_func' при сохранении поля. Новые параметр 'cap' для метабокса и отдельно для полей.
-1.9.1 (2.03.2018) - Новый параметр 'desc' для всего метабокса.
-- Возможность изменять отдельные поля темы оформления метабокса.
-- Возможность передать функцию/замыкание в параметр 'desc' у поля.
-1.9.0 - Новые параметры полей: 'output_func', 'update_func' и 'disable_func'.
-1.8.0 - Баг с выводом поля, когда используется своя функция...
-- Параметр 'sanitize_func' для каждого поля. Чтобы можно было указать очистку отдельного поля.
-- Доработана очистка полей, теперь она опирается на тип поля.
-1.7.0 - ADD: if set field 'options' parametr it becomes checkbox 'value' attribute.
-- remove extract() call in field() method
-1.6.0 - FIX: closure remove bug
-1.5.0 - ADD: theme support. New parametr 'theme'. where you can set 'table' or 'line' themes.
-1.3.0 - ADD: 'disable_func' parametr - its allow to disable/enable metabox by any conditions inside edit post screen.
-- FIX: field 'options' parametr for <select> element: now you can set numeric array keys as option value, ex: 'options' => array( 23=>'Name', 5=>'Name 2' )
-- CHG: instance ID and instances save algorithm
- */
+
