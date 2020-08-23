@@ -20,7 +20,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 	 *
 	 * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
 	 *
-	 * @version 1.9.7
+	 * @version 1.9.8
 	 */
 	class Kama_Post_Meta_Box {
 
@@ -365,8 +365,12 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 		// radio
 		function field__radio( $rg, $var, $post, $fn__desc, $fn__field ){
 			$radios = array();
-			foreach( $rg->options as $v => $l )
-				$radios[] = '<label '. $rg->attr . $var->class .'><input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'</label> ';
+			foreach( $rg->options as $v => $l ){
+				$radios[] = '
+				<label '. $rg->attr . $var->class .'>
+					<input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'
+				</label> ';
+			}
 
 			return $var->title . $fn__field('<span class="radios">'. implode("\n", $radios ) .'</span>'. $fn__desc() );
 		}
@@ -439,16 +443,18 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 				add_action( 'admin_print_footer_scripts', function(){
 					?>
 					<script>
-					$('.kmb_img_wrap').each(function(){
+					jQuery('.kmb_img_wrap').each(function(){
 
-						var frame,
-							$wrap = $(this),
-							$img   = $wrap.find('img'),
-							$input = $wrap.find('input[type="hidden"]');
+						let $      = jQuery
+
+						let frame
+						let $wrap  = $(this)
+						let $img   = $wrap.find('img')
+						let $input = $wrap.find('input[type="hidden"]')
 
 						$wrap.on( 'click', '.set_img', function(){
 
-							var post_id = $(this).data('post_id') || null
+							let post_id = $(this).data('post_id') || null
 
 							//if( frame && frame.post_id === post_id ){
 							//	frame.open();
@@ -504,8 +510,8 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 			<span class="kmb_img_wrap" data-usetype="<?= esc_attr($usetype) ?>" style="display:flex; align-items:center;">
 				<img src="<?= esc_url($src) ?>" style="max-height:100px; max-width:100px; margin-right:1em;" alt="">
 				<span>
+					<input class="set_img button button-small" type="button" data-post_id="<?= $post->ID ?>" value="<?= __( 'Images' ) .' '. __( 'Post' ) ?>" />
 					<input class="set_img button button-small" type="button" value="<?= __('Set image') ?>" />
-					<input class="set_img button button-small" type="button" data-post_id="<?= $post->ID ?>" value="<?= __( 'Uploaded to this post' ) ?>" />
 					<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
 
 					<input type="hidden" name="<?= $var->name ?>" value="<?= esc_attr($rg->val) ?>">
@@ -549,7 +555,6 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 			}
 			$fields_names  = array_keys( $fields_data );
 			$save_metadata = array_intersect_key( $save_metadata, array_flip($fields_names) );
-
 
 			// Очистка
 			if( 'sanitize' ){
@@ -620,7 +625,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 		}
 
 		function _key_prefix(){
-			return ($this->opt->id{0} == '_') ? '' : $this->opt->id .'_';
+			return (substr( $this->opt->id, 0, 1 ) == '_') ? '' : $this->opt->id .'_';
 		}
 
 	}
