@@ -20,7 +20,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 	 *
 	 * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
 	 *
-	 * @version 1.9.8
+	 * @version 1.9.9
 	 */
 	class Kama_Post_Meta_Box {
 
@@ -28,12 +28,12 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 
 		public $id;
 
-		static $instances = array(); // сохраняет ссылки на все экземпляры
+		static $instances = array();
 
 		/**
-		 * Конструктор
+		 * Конструктор.
 		 *
-		 * @param array $opt Опции по которым будет строиться метаблок
+		 * @param array $opt Опции по которым будет строиться метаблок.
 		 */
 		function __construct( $opt ){
 
@@ -44,6 +44,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 				'title'      => '',       // заголовок блока
 				'desc'       => '',       // описание для метабокса. Можно указать функцию/замыкание, она получит $post. С версии 1.9.1
 				'post_type'  => '',       // строка/массив. Типы записей для которых добавляется блок: array('post','page').
+				'not_post_type'  => '',   // строка/массив. Типы записей для которых не нужно добавлять этот блок.
 				// По умолчанию: '' - для всех типов записей.
 				'post_type_feature' => '', // строка. возможность которая должна быть у типа записи,
 				// чтобы метабокс отобразился. См. post_type_supports()
@@ -86,7 +87,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 				return;
 
 			// темы оформления
-			if( 'theme_options' ){
+			if( 'themes' ){
 
 				$opt_theme = & $this->opt->theme;
 
@@ -163,15 +164,15 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 
 		function add_meta_box( $post_type, $post ){
 
-			$opt = $this->opt; // short love
+			$opt = $this->opt;
 
-			// может отключить метабокс?
 			if(
 				in_array( $post_type, [ 'comment','link' ] )
 				|| ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID )
 				|| ( $opt->post_type_feature && ! post_type_supports( $post_type, $opt->post_type_feature ) )
 				|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ) ) )
 				|| ( $opt->disable_func && is_callable($opt->disable_func) && call_user_func( $opt->disable_func, $post ) )
+				|| in_array( $post_type, (array) $opt->not_post_type, true )
 			)
 				return;
 
@@ -182,8 +183,9 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 				foreach( $p_types as $p_type )
 					add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_type, $opt->context, $opt->priority );
 			}
-			else
+			else {
 				add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_types, $opt->context, $opt->priority );
+			}
 
 			// добавим css класс к метабоксу
 			// apply_filters( "postbox_classes_{$page}_{$id}", $classes );
@@ -224,7 +226,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 			     $metabox_desc .
 			     $hidden_out .
 			     sprintf( (@ $this->opt->fields_wrap ?: '%s'), $fields_out ) .
-			     '<div class="clear"></div>';
+			     '<div class="clearfix"></div>';
 		}
 
 		/**
@@ -445,7 +447,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 					<script>
 					jQuery('.kmb_img_wrap').each(function(){
 
-						let $      = jQuery
+						let $ = jQuery
 
 						let frame
 						let $wrap  = $(this)
