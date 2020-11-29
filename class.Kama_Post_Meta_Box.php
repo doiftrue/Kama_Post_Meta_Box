@@ -20,7 +20,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 	 *
 	 * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
 	 *
-	 * @version 1.9.9
+	 * @version 1.9.10
 	 */
 	class Kama_Post_Meta_Box {
 
@@ -209,9 +209,10 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 				$args['key'] = $key;
 
 				$field_wrap = & $this->opt->field_wrap;
-				if( @ $args['type'] == 'wp_editor' )  $field_wrap = str_replace( [ '<p ','</p>' ], [ '<div ','</div><br>' ], $field_wrap );
+				if( 'wp_editor' === @ $args['type'] )
+					$field_wrap = str_replace( [ '<p ','</p>' ], [ '<div ','</div><br>' ], $field_wrap );
 
-				if( @ $args['type'] == 'hidden' )
+				if( 'hidden' === @ $args['type'] )
 					$hidden_out .= $this->field( $args, $post );
 				else
 					$fields_out .= sprintf( $field_wrap, $key .'_meta', $this->field( $args, $post ) );
@@ -532,7 +533,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 		 */
 		function meta_box_save( $post_id, $post ){
 
-			if(	! ( $save_metadata = @ $_POST["{$this->id}_meta"] )                                        // нет данных
+			if(	! ( $save_metadata = isset($_POST[ $key="{$this->id}_meta" ]) ? $_POST[$key] : '' )       // нет данных
 			       || ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE  )                                           // выходим, если это автосохр.
 			       || ! wp_verify_nonce( $_POST['_wpnonce'], 'update-post_'. $post_id )                          // nonce проверка
 			       || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type ) ) // не подходящий тип записи
@@ -579,7 +580,7 @@ if( ! class_exists('Kama_Post_Meta_Box') ) :
 							$value = call_user_func( $fields_data[$meta_key]['sanitize_func'], $value );
 						}
 						// не чистим
-						elseif( @ $fields_data[$meta_key]['sanitize_func'] === 'none' ){}
+						elseif( 'none' === @ $fields_data[$meta_key]['sanitize_func'] ){}
 						// не чистим - видимо это произвольная функция вывода полей, которая сохраняет массив
 						elseif( is_array($value) ){}
 						// нет функции очистки отдельного поля
