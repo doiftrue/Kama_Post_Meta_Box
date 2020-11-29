@@ -1,4 +1,7 @@
 
+1.9.10  — 29.11.2020
+- Fix: error suppress sign @ was deleted.
+
 1.9.9 — 27.11.2020
 - New: `not_post_type` parameter.
 
