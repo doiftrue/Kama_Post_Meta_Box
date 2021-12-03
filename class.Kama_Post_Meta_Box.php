@@ -135,8 +135,8 @@ class Kama_Post_Meta_Box {
 			'save_sanitize'     => '',
 			'theme'             => 'table',
 			'fields'            => [
-				'foo' => [ 'title' =>'Первое метаполе' ],
-				'bar' => [ 'title' =>'Второе метаполе' ],
+				'foo' => [ 'title' => 'Первое метаполе' ],
+				'bar' => [ 'title' => 'Второе метаполе' ],
 			],
 		];
 
