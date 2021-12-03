@@ -45,7 +45,7 @@ class Kama_Post_Meta_Box {
 	 *                                            Начните с '_' >>> '_foo', чтобы ID не был префиксом в названии метаполей.
 	 *     @type string       $title              Заголовок блока.
 	 *     @type string       $desc               Описание для самого метабокса (сразу под заголовком).
-	 *     @type string $fields_desc_pos          Где располагать описание для отдельного поля. before, after. По умолчанию: before.
+	 *     @type string       $fields_desc_pos    Где располагать описание для отдельного поля. before, after. По умолчанию: before.
 	 *     @type string       $post_type          Описание для метабокса. Можно указать функцию/замыкание, она получит $post.
 	 *     @type string|array $not_post_type      Строка/массив. Типы записей для которых добавляется блок: `[ 'post', 'page' ]`.
 	 *                                            По умолчанию: '' = для всех типов записей.
@@ -377,8 +377,6 @@ trait Kama_Post_Meta_Box__Fields {
 	protected $_rg;
 	protected $_post;
 	protected $_var;
-
-	protected $field_pattern = '{field}{desc}';
 
 	/**
 	 * Выводит отдельные мета поля.
