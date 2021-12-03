@@ -1,4 +1,10 @@
 
+1.9.11  — 3.11.2021
+- New: theme `grid`.
+- New: parameter `fields_desc_pos`. Allows to specify where display description, before or after field. Default before.
+- Refactoring.
+
+
 1.9.10  — 29.11.2020
 - Fix: error suppress sign @ was deleted.
 
