@@ -1,4 +1,9 @@
 
+1.11.0  — 3.11.2021
+- Removed parameter `fields_desc_pos`.
+- New: parameters `desc_before`, `desc_after`.
+- Refactorion - ability to extend fields class and create your own fields.
+
 1.9.11  — 3.11.2021
 - New: theme `grid`.
 - New: parameter `fields_desc_pos`. Allows to specify where display description, before or after field. Default before.
