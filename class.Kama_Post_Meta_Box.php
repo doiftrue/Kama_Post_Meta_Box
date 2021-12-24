@@ -506,7 +506,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		// произвольная функция
 		if( is_callable( $rg->callback ) ){
 			$out = $var->title . $this->tpl__field(
-				$rg->callback( $args, $post, $var->name, $var->val, $rg, $var )
+				call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
 			);
 		}
 		// произвольный метод
