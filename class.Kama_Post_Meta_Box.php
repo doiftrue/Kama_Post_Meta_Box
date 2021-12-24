@@ -40,7 +40,7 @@ class Kama_Post_Meta_Box {
 	 */
 	protected $fields;
 
-	const METABOX_DEFAULT_ARGS = [
+	const METABOX_ARGS = [
 		'id'                => '',
 		'title'             => '',
 		'desc'              => '',
@@ -60,7 +60,7 @@ class Kama_Post_Meta_Box {
 		],
 	];
 
-	const FIELD_DEFAULT_ARGS =  [
+	const FIELD_ARGS =  [
 		'type'          => '',
 		'title'         => '',
 		'desc'          => '',
@@ -172,7 +172,7 @@ class Kama_Post_Meta_Box {
 	 */
 	public function __construct( array $opt ){
 
-		$this->opt = (object) array_merge( self::METABOX_DEFAULT_ARGS, $opt );
+		$this->opt = (object) array_merge( self::METABOX_ARGS, $opt );
 
 		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', 'Kama_Post_Meta_Box_Fields' );
 		$this->fields = new $fields_class( $this );
@@ -444,7 +444,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		// внутренние переменные этой фукнции, будут переданы в методы
 		$var = (object) [];
 
-		$rg = (object) array_merge( self::FIELD_DEFAULT_ARGS, $args );
+		$rg = (object) array_merge( self::FIELD_ARGS, $args );
 
 		if( $rg->cap && ! current_user_can( $rg->cap ) ){
 			return null;
@@ -1035,10 +1035,6 @@ class Kama_Post_Meta_Box_Fields {
 	}
 
 }
-
-
-
-
 
 
 
