@@ -22,11 +22,11 @@ if( class_exists('Kama_Post_Meta_Box') ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.9.11
+ * @version 1.11.0
  */
 class Kama_Post_Meta_Box {
 
-	use Kama_Post_Meta_Box__Fields;
+	use Kama_Post_Meta_Box__Fields_Part;
 	use Kama_Post_Meta_Box__Themes;
 
 	public $opt;
@@ -36,40 +36,90 @@ class Kama_Post_Meta_Box {
 	static $instances = array();
 
 	/**
+	 * @var Kama_Post_Meta_Box_Fields
+	 */
+	protected $fields;
+
+	const METABOX_DEFAULT_ARGS = [
+		'id'                => '',
+		'title'             => '',
+		'desc'              => '',
+		'post_type'         => '',
+		'not_post_type'     => '',
+		'post_type_feature' => '',
+		'post_type_options' => '',
+		'priority'          => 'high',
+		'context'           => 'normal',
+		'disable_func'      => '',
+		'cap'               => '',
+		'save_sanitize'     => '',
+		'theme'             => 'table',
+		'fields'            => [
+			'foo' => [ 'title' => 'Первое метаполе' ],
+			'bar' => [ 'title' => 'Второе метаполе' ],
+		],
+	];
+
+	const FIELD_DEFAULT_ARGS =  [
+		'type'          => '',
+		'title'         => '',
+		'desc'          => '',
+		'desc_before'   => '',
+		'desc_after'    => '',
+		'placeholder'   => '',
+		'id'            => '',
+		'class'         => '',
+		'attr'          => '',
+		'val'           => '',
+		'options'       => '',
+		'params'        => [], // дополнительные параметры поля
+		'callback'      => '',
+		'sanitize_func' => '',
+		'output_func'   => '',
+		'update_func'   => '',
+		'disable_func'  => '',
+		'cap'           => '',
+
+		// служебные
+		'key'           => '', // Обязательный! Автоматический
+		'title_patt'    => '', // Обязательный! Автоматический
+		'field_patt'    => '', // Обязательный! Автоматический
+	];
+
+	/**
 	 * Конструктор.
 	 *
-	 * @param array $opt {
+	 * @param array           $opt             {
 	 *     Опции по которым будет строиться метаблок.
 	 *
-	 *     @type string       $id                 Иднетификатор блока. Используется как префикс для названия метаполя.
-	 *                                            Начните с '_' >>> '_foo', чтобы ID не был префиксом в названии метаполей.
-	 *     @type string       $title              Заголовок блока.
-	 *     @type string       $desc               Описание для самого метабокса (сразу под заголовком).
-	 *     @type string       $fields_desc_pos    Где располагать описание для отдельного поля. before, after. По умолчанию: before.
-	 *     @type string       $post_type          Описание для метабокса. Можно указать функцию/замыкание, она получит $post.
-	 *     @type string|array $not_post_type      Строка/массив. Типы записей для которых добавляется блок: `[ 'post', 'page' ]`.
-	 *                                            По умолчанию: '' = для всех типов записей.
+	 *     @type string       $id              Иднетификатор блока. Используется как префикс для названия метаполя.
+	 *                                         Начните с '_' >>> '_foo', чтобы ID не был префиксом в названии метаполей.
+	 *     @type string       $title           Заголовок блока.
+	 *     @type string       $desc            Описание для самого метабокса (сразу под заголовком).
+	 *     @type string       $post_type       Описание для метабокса. Можно указать функцию/замыкание, она получит $post.
+	 *     @type string|array $not_post_type   Строка/массив. Типы записей для которых добавляется блок:
+	 *                                            `[ 'post', 'page' ]`. По умолчанию: '' = для всех типов записей.
 	 *     @type string       $post_type_feature  Строка. Возможность которая должна быть у типа записи,
 	 *                                            чтобы метабокс отобразился. See https://wp-kama.ru/post_type_supports
 	 *     @type string       $post_type_options  Массив. Опции типа записи, которые должны быть у типа записи,
 	 *                                            чтобы метабокс отобразился. See перывый параметр https://wp-kama.ru/get_post_types
-	 *     @type string       $priority           Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
-	 *     @type string       $context            Место где должен показываться блок ('normal', 'advanced' или 'side').
-	 *     @type string       $disable_func       Функция отключения метабокса во время вызова самого метабокса.
-	 *                                            Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен.
-	 *                                            Передает объект поста.
-	 *     @type string       $cap                Название права пользователя, чтобы показывать метабокс.
-	 *     @type string       $save_sanitize      Функция очистки сохраняемых в БД полей. Получает 2 параметра:
-	 *                                            $metas - все поля для очистки и $post_id.
-	 *     @type string       $theme              Тема оформления: 'table', 'line', 'grid'.
-	 *                                            ИЛИ массив паттернов полей:
-	 *                                            css, fields_wrap, field_wrap, title_patt, field_patt, desc_patt.
-	 *                                            ЕСЛИ Массив указывается так: [ 'desc_patt' => '<div>%s</div>' ]
-	 *                                            (за овнову будет взята тема line).
-	 *                                            ЕСЛИ Массив указывается так: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ]
-	 *                                            (за овнову будет взята тема table).
-	 *                                            ИЛИ изменить тему можно через фильтр 'kp_metabox_theme'
-	 *                                            (удобен для общего изменения темы для всех метабоксов).
+	 *     @type string       $priority      Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
+	 *     @type string       $context       Место где должен показываться блок ('normal', 'advanced' или 'side').
+	 *     @type string       $disable_func  Функция отключения метабокса во время вызова самого метабокса.
+	 *                                       Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен.
+	 *                                       Передает объект поста.
+	 *     @type string       $cap           Название права пользователя, чтобы показывать метабокс.
+	 *     @type string       $save_sanitize Функция очистки сохраняемых в БД полей. Получает 2 параметра:
+	 *                                       $metas - все поля для очистки и $post_id.
+	 *     @type string       $theme         Тема оформления: 'table', 'line', 'grid'.
+	 *                                       ИЛИ массив паттернов полей:
+	 *                                       css, fields_wrap, field_wrap, title_patt, field_patt, desc_before_patt.
+	 *                                       ЕСЛИ Массив указывается так: [ 'desc_before_patt' => '<div>%s</div>' ]
+	 *                                       (за овнову будет взята тема line).
+	 *                                       ЕСЛИ Массив указывается так: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
+	 *                                       (за овнову будет взята тема table).
+	 *                                       ИЛИ изменить тему можно через фильтр 'kp_metabox_theme'
+	 *                                       (удобен для общего изменения темы для всех метабоксов).
 	 *     @type array        $fields {
 	 *         Метаполя. Собственно, сами метаполя. Список возможных ключей массива для каждого поля.
 	 *         See метод field().
@@ -86,12 +136,14 @@ class Kama_Post_Meta_Box {
 	 *         @type string $title           Заголовок метаполя.
 	 *         @type string $desc            Описание для поля. Можно указать функцию/замыкание, она получит параметры:
 	 *                                       $post, $meta_key, $val, $name.
+	 *         @type string $desc_before     Алиас $desc.
+	 *         @type string $desc_after      Тоже что $desc, только будет выводиться внизу поля.
 	 *         @type string $placeholder     Атрибут placeholder.
 	 *         @type string $id              Атрибут id. По умолчанию: $this->opt->id .'_'. $key.
 	 *         @type string $class           Атрибут class: добавляется в input, textarea, select.
 	 *                                       Для checkbox, radio в оборачивающий label.
-	 *         @type string $attr            Любая строка, будет расположена внутри тега. Для создания атрибутов.
-	 *                                       Пр: style="width:100%;".
+	 *         @type string $attr            Любая строка. Атрибуты HTML тега элемента формы (input).
+	 *         @type string $wrap_attr       Любая строка. Атрибуты HTML тега оборачивающего поле: `style="width:50%;"`.
 	 *         @type string $val             Значение по умолчанию, если нет сохраненного.
 	 *         @type string $options         массив: array('значение'=>'название') - варианты для типов 'select', 'radio'.
 	 *                                       Для 'wp_editor' стенет аргументами.
@@ -99,8 +151,9 @@ class Kama_Post_Meta_Box {
 	 *                                       Для 'image' определяет тип сохраняемого в метаполе значения:
 	 *                                       id (ID вложения), url (url вложения).
 	 *         @type string $callback        Название функции, которая отвечает за вывод поля.
-	 *                                       Если указана, то ни один параметр не учитывается и за вывод полностью отвечает указанная функция.
-	 *                                       Все параметры передаются ей... Получит параметры: $args, $post, $name, $val
+	 *                                       Если указана, то ни один параметр не учитывается и за вывод
+	 *                                       полностью отвечает указанная функция.
+	 *                                       Получит параметры: $args, $post, $name, $val, $rg, $var
 	 *         @type string $sanitize_func   Функция очистки данных при сохранении - название функции или Closure.
 	 *                                       Укажите 'none', чтобы не очищать данные...
 	 *                                       Работает, только если не установлен глобальный параметр 'save_sanitize'...
@@ -117,36 +170,18 @@ class Kama_Post_Meta_Box {
 	 *
 	 * }
 	 */
-	function __construct( $opt ){
+	public function __construct( array $opt ){
 
-		$defaults = [
-			'id'                => '',
-			'title'             => '',
-			'desc'              => '',
-			'fields_desc_pos'   => 'before',
-			'post_type'         => '',
-			'not_post_type'     => '',
-			'post_type_feature' => '',
-			'post_type_options' => '',
-			'priority'          => 'high',
-			'context'           => 'normal',
-			'disable_func'      => '',
-			'cap'               => '',
-			'save_sanitize'     => '',
-			'theme'             => 'table',
-			'fields'            => [
-				'foo' => [ 'title' => 'Первое метаполе' ],
-				'bar' => [ 'title' => 'Второе метаполе' ],
-			],
-		];
+		$this->opt = (object) array_merge( self::METABOX_DEFAULT_ARGS, $opt );
 
-		$this->opt = (object) array_merge( $defaults, $opt );
+		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', 'Kama_Post_Meta_Box_Fields' );
+		$this->fields = new $fields_class( $this );
 
 		// хуки инициализации, вешается на хук init чтобы текущий пользователь уже был установлен
 		add_action( 'init', [ $this, 'init_hooks' ], 20 );
 	}
 
-	function init_hooks(){
+	public function init_hooks(): void {
 
 		// может метабокс отключен по праву
 		if( $this->opt->cap && ! current_user_can( $this->opt->cap ) ){
@@ -160,7 +195,7 @@ class Kama_Post_Meta_Box {
 		$_opt = (array) clone $this->opt;
 		// удалим все closure
 		array_walk_recursive( $_opt, static function( &$val, $key ){
-			if( $val instanceof Closure ) $val = '';
+			( $val instanceof Closure ) && $val = '';
 		});
 		$this->id = substr( md5( serialize( $_opt ) ), 0, 7 ); // ID экземпляра
 
@@ -171,15 +206,16 @@ class Kama_Post_Meta_Box {
 		add_action( 'save_post', [ $this, 'meta_box_save' ], 1, 2 );
 	}
 
-	function add_meta_box( $post_type, $post ){
+	public function add_meta_box( $post_type, $post ): void {
 
 		$opt = $this->opt;
 
+		/** @noinspection NotOptimalIfConditionsInspection */
 		if(
 			in_array( $post_type, [ 'comment', 'link' ], true )
 			|| ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID )
 			|| ( $opt->post_type_feature && ! post_type_supports( $post_type, $opt->post_type_feature ) )
-			|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ) ) )
+			|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ), true ) )
 			|| ( $opt->disable_func && is_callable($opt->disable_func) && call_user_func( $opt->disable_func, $post ) )
 			|| in_array( $post_type, (array) $opt->not_post_type, true )
 		){
@@ -219,9 +255,9 @@ class Kama_Post_Meta_Box {
 				continue;
 			}
 
-			if( empty( $args['title_patt'] ) ) $args['title_patt'] = $this->opt->title_patt ?? '%s';
-			if( empty( $args['desc_patt'] )  ) $args['desc_patt']  = $this->opt->desc_patt  ?? '%s';
-			if( empty( $args['field_patt'] ) ) $args['field_patt'] = $this->opt->field_patt ?? '%s';
+			empty( $args['title_patt'] ) && $args['title_patt'] = $this->opt->title_patt ?? '%s';
+			empty( $args['desc_before_patt'] )  && $args['desc_before_patt']  = $this->opt->desc_before_patt  ?? '%s';
+			empty( $args['field_patt'] ) && $args['field_patt'] = $this->opt->field_patt ?? '%s';
 
 			$args['key'] = $key;
 
@@ -234,7 +270,7 @@ class Kama_Post_Meta_Box {
 				$hidden_out .= $this->field( $args, $post );
 			}
 			else{
-				$fields_out .= sprintf( $field_wrap, $key . '_meta', $this->field( $args, $post ) );
+				$fields_out .= sprintf( $field_wrap, "{$key}_meta", $this->field( $args, $post ), ( $args['wrap_attr'] ?? '' ) );
 			}
 
 		}
@@ -254,18 +290,27 @@ class Kama_Post_Meta_Box {
 	}
 
 	/**
-	 * Сохраняем данные, при сохранении поста
-	 * @param  integer $post_id ID записи
-	 * @return boolean  false если проверка не пройдена
+	 * Сохраняем данные, при сохранении поста.
+	 *
+	 * @param int     $post_id ID записи.
+	 * @param WP_Post $post
+	 *
+	 * @return void|null False если проверка не пройдена.
 	 */
-	public function meta_box_save( $post_id, $post ){
+	public function meta_box_save( $post_id, $post ): void {
 
-		if(	! ( $save_metadata = isset($_POST[ $key="{$this->id}_meta" ]) ? $_POST[$key] : '' )       // нет данных
-		       || ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE  )                                           // выходим, если это автосохр.
-		       || ! wp_verify_nonce( $_POST['_wpnonce'], 'update-post_'. $post_id )                          // nonce проверка
-		       || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type ) ) // не подходящий тип записи
-		)
-			return null;
+		if(
+			// no data
+			! ( $save_metadata = isset( $_POST[ $key = "{$this->id}_meta" ] ) ? $_POST[ $key ] : '' )
+			// Exit, if it is autosave.
+		    || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
+			// nonce check
+		    || ! wp_verify_nonce( $_POST['_wpnonce'], "update-post_$post_id" )
+			// unsuitable post type
+		    || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type, true ) )
+		){
+			return;
+		}
 
 		// оставим только поля текущего класса (защиты от подмены поля)
 		$_key_prefix = $this->_key_prefix();
@@ -274,51 +319,60 @@ class Kama_Post_Meta_Box {
 			$meta_key = $_key_prefix . $_key;
 
 			// недостаточно прав
-			if( !empty($rg['cap']) && ! current_user_can( $rg['cap'] ) )
+			if( ! empty( $rg['cap'] ) && ! current_user_can( $rg['cap'] ) ){
 				continue;
+			}
 
 			// пропускаем отключенные поля
-			if( !empty($rg['disable_func']) && is_callable($rg['disable_func']) && call_user_func( $rg['disable_func'], $post, $meta_key ) )
+			if( ! empty( $rg['disable_func'] ) && is_callable( $rg['disable_func'] ) && call_user_func( $rg['disable_func'], $post, $meta_key ) ){
 				continue;
+			}
 
 			$fields_data[ $meta_key ] = $rg;
 		}
 		$fields_names  = array_keys( $fields_data );
-		$save_metadata = array_intersect_key( $save_metadata, array_flip($fields_names) );
+		$save_metadata = array_intersect_key( $save_metadata, array_flip( $fields_names ) );
 
 		// Очистка
 		if( 'sanitize' ){
+
 			// своя функция очистки
-			if( is_callable($this->opt->save_sanitize) ){
-				$save_metadata = call_user_func_array( $this->opt->save_sanitize, [ $save_metadata, $post_id, $fields_data ] );
+			if( is_callable( $this->opt->save_sanitize ) ){
+				$save_metadata = call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
 				$sanitized = true;
 			}
 			// хук очистки
-			if( has_filter("kpmb_save_sanitize_{$this->opt->id}") ){
-				$save_metadata = apply_filters("kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
+			if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
+				$save_metadata = apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
 				$sanitized = true;
 			}
 			// если нет функции и хука очистки, то чистим все поля с помощью wp_kses() или sanitize_text_field()
-			if( empty($sanitized) ){
+			if( empty( $sanitized ) ){
 
 				foreach( $save_metadata as $meta_key => & $value ){
 					// есть функция очистки отдельного поля
-					if( !empty($fields_data[$meta_key]['sanitize_func']) && is_callable($fields_data[$meta_key]['sanitize_func']) ){
-						$value = call_user_func( $fields_data[$meta_key]['sanitize_func'], $value );
+					if(
+						! empty( $fields_data[ $meta_key ]['sanitize_func'] )
+						&&
+						is_callable( $fields_data[ $meta_key ]['sanitize_func'] )
+					){
+						$value = call_user_func( $fields_data[ $meta_key ]['sanitize_func'], $value );
 					}
 					// не чистим
 					elseif( 'none' === ( $fields_data[$meta_key]['sanitize_func'] ?? '' ) ){
 						// skip
 					}
 					// не чистим - видимо это произвольная функция вывода полей, которая сохраняет массив
-					elseif( is_array($value) ){}
+					elseif( is_array( $value ) ){
+						// skip
+					}
 					// нет функции очистки отдельного поля
 					else {
 
 						$type = !empty($fields_data[$meta_key]['type']) ? $fields_data[$meta_key]['type'] : 'text';
 
 						if( $type === 'number' ){
-							$value = floatval( $value );
+							$value = (float) $value;
 						}
 						elseif( $type === 'email' ){
 							$value = sanitize_email( $value );
@@ -334,11 +388,12 @@ class Kama_Post_Meta_Box {
 					}
 				}
 				unset( $value );
-
 			}
+
+
 		}
 
-		// Сохраняем
+		// Save
 		foreach( $save_metadata as $meta_key => $value ){
 			// если есть функция сохранения
 			if(
@@ -348,15 +403,12 @@ class Kama_Post_Meta_Box {
 			){
 				call_user_func( $fields_data[ $meta_key ]['update_func'], $post, $meta_key, $value );
 			}
-			else {
-				// удаляем поле, если значение пустое. 0 остается...
-				if( ! $value && ( $value !== '0' ) ){
-					delete_post_meta( $post_id, $meta_key );
-				}
-				// add_post_meta() работает автоматически
-				else{
-					update_post_meta( $post_id, $meta_key, $value );
-				}
+			elseif( ! $value && ( $value !== '0' ) ){
+				delete_post_meta( $post_id, $meta_key );
+			}
+			// add_post_meta() works automatically
+			else{
+				update_post_meta( $post_id, $meta_key, $value );
 			}
 		}
 	}
@@ -372,7 +424,7 @@ class Kama_Post_Meta_Box {
 
 }
 
-trait Kama_Post_Meta_Box__Fields {
+trait Kama_Post_Meta_Box__Fields_Part {
 
 	protected $_rg;
 	protected $_post;
@@ -389,30 +441,10 @@ trait Kama_Post_Meta_Box__Fields {
 	 */
 	protected function field( $args, $post ){
 
-		$var = (object) []; // внутренние переменные этой фукнции, будут переданы в методы
-		$rg  = (object) array_merge( [
-			'type'          => '',
-			'title'         => '',
-			'desc'          => '',
-			'placeholder'   => '',
-			'id'            => '',
-			'class'         => '',
-			'attr'          => '',
-			'val'           => '',
-			'options'       => '',
-			'callback'      => '',
-			'sanitize_func' => '',
-			'output_func'   => '',
-			'update_func'   => '',
-			'disable_func'  => '',
-			'cap'           => '',
+		// внутренние переменные этой фукнции, будут переданы в методы
+		$var = (object) [];
 
-			// служебные
-			'key'           => '', // Обязательный! Автоматический
-			'title_patt'    => '', // Обязательный! Автоматический
-			'field_patt'    => '', // Обязательный! Автоматический
-			//'desc_patt'     => '', // Обязательный! Автоматический
-		], $args );
+		$rg = (object) array_merge( self::FIELD_DEFAULT_ARGS, $args );
 
 		if( $rg->cap && ! current_user_can( $rg->cap ) ){
 			return null;
@@ -423,6 +455,14 @@ trait Kama_Post_Meta_Box__Fields {
 		}
 		if( ! $rg->type ){
 			$rg->type = 'text';
+		}
+
+		// standartize desc
+		if( $rg->desc ){
+			$rg->desc_before = $rg->desc;
+		}
+		if( ! $rg->desc && ! $rg->desc_before && $rg->desc_after ){
+			$rg->desc = $rg->desc_after;
 		}
 
 		$var->meta_key = $this->_key_prefix() . $rg->key;
@@ -437,14 +477,14 @@ trait Kama_Post_Meta_Box__Fields {
 		}
 
 		// meta_val
-		$rg->val = get_post_meta( $post->ID, $var->meta_key, true ) ?: $rg->val;
+		$var->val = get_post_meta( $post->ID, $var->meta_key, true ) ?: $rg->val;
 		if( $rg->output_func && is_callable( $rg->output_func ) ){
-			$rg->val = call_user_func( $rg->output_func, $post, $var->meta_key, $rg->val );
+			$var->val = call_user_func( $rg->output_func, $post, $var->meta_key, $var->val );
 		}
 
 		$var->name = "{$this->id}_meta[$var->meta_key]";
 
-		$rg->id  = $rg->id ?: "{$this->opt->id}_{$rg->key}";
+		$rg->id = $rg->id ?: "{$this->opt->id}_{$rg->key}";
 
 		// при табличной теме, td заголовка должен выводиться всегда!
 		if( false !== strpos( $rg->title_patt, '<td ' ) ){
@@ -456,7 +496,7 @@ trait Kama_Post_Meta_Box__Fields {
 
 		$rg->options = (array) $rg->options;
 
-		$var->pholder = $rg->placeholder ? ' placeholder="'. esc_attr($rg->placeholder) .'"' : '';
+		$var->pholder = $rg->placeholder ? ' placeholder="'. esc_attr( $rg->placeholder ) .'"' : '';
 		$var->class = $rg->class ? ' class="'. $rg->class .'"' : '';
 
 		$this->_rg = $rg;
@@ -465,90 +505,249 @@ trait Kama_Post_Meta_Box__Fields {
 
 		// произвольная функция
 		if( is_callable( $rg->callback ) ){
-			$out = $var->title . $this->fn__field( call_user_func( $rg->callback, $args, $post, $var->name, $rg->val, $rg, $var ) );
+			$out = $var->title . $this->tpl__field(
+				$rg->callback( $args, $post, $var->name, $var->val, $rg, $var )
+			);
 		}
 		// произвольный метод
 		// вызов метода `$this->field__{FIELD}()` (для возможности расширить этот класс)
-		elseif( method_exists( $this, "field__$rg->type" ) ){
-			$out = $this->{"field__$rg->type"}( $rg, $var, $post );
+		elseif( method_exists( $this->fields, $rg->type ) ){
+			$out = $this->fields->{ $rg->type }( $rg, $var, $post, $args );
 		}
 		// text, email, number, url, tel, color, password, date, month, week, range
 		else{
-			$out = $this->field__default( $rg, $var, $post );
+			$out = $this->fields->default( $rg, $var, $post );
 		}
 
 		return $out;
 	}
 
-	protected function fn__desc(): string {
-
-		[ $rg, $post, $var ] = [ $this->_rg, $this->_post, $this->_var ];
-
-		if( ! $rg->desc ){
-			return '';
-		}
-
-		$desc = is_callable( $rg->desc )
-			? call_user_func( $rg->desc, $post, $var->meta_key, $rg->val, $var->name )
-			: $rg->desc;
-
-		return sprintf( $this->opt->desc_patt, $desc );
-	}
-
-	protected function fn__field( $field ){
+	public function tpl__field( $field ){
 		$rg = $this->_rg;
 
 		return sprintf( $rg->field_patt, $field );
 	}
 
-	protected function field_desc_concat( $field, $desc ){
+	public function field_desc_concat( $field ){
+
+		[ $rg, $var, $post, $opt ] = [ $this->_rg, $this->_var, $this->_post, $this->opt ];
+
+		$desc_fn = static function( $desc ) use( $var, $post ){
+
+			return is_callable( $desc )
+				? $desc( $post, $var->meta_key, $var->val, $var->name )
+				: $desc;
+		};
 
 		// description before field
-		if( false === strpos( $this->opt->desc_patt, '<br' ) ){
+		if( $rg->desc_before ){
+			$desc = sprintf( $opt->desc_before_patt, $desc_fn( $rg->desc_before ) );
+
 			return $desc . $field;
 		}
 
 		// descroption after field
-		return $field . $desc;
+		if( $rg->desc_after ){
+			$desc = sprintf( $opt->desc_after_patt, $desc_fn( $rg->desc_after ) );
+
+			return $field . $desc;
+		}
+
+		return $field;
+	}
+}
+
+trait Kama_Post_Meta_Box__Themes {
+
+	private function set_theme(): void {
+
+		$opt_theme = & $this->opt->theme;
+
+		$def_opt_theme = [
+			'line' => [
+				// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
+				'css'         => '
+					.kpmb{ display: flex; flex-wrap: wrap; justify-content: space-between; }
+					.kpmb > * { width:100%; }
+				    .kpmb__field{ box-sizing:border-box; margin-bottom:1em; }
+				    .kpmb__tit{ display: block; margin:1em 0 .5em; font-size:115%; }
+				    .kpmb__desc{ opacity:0.6; }
+				    .kpmb__desc.--after{ margin-top:.5em; }
+				    .kpmb__sep{ display:block; padding:1em; font-size:110%; font-weight:600; }
+				    .kpmb__sep.--hr{ padding: 0; height: 1px; background: #eee; margin: 1em -12px 0 -12px; }
+			    ',
+				// '%s' будет заменено на html всех полей
+				'fields_wrap' => '<div class="kpmb">%s</div>',
+				// '%2$s' будет заменено на html поля (вместе с заголовком, полем и описанием)
+				'field_wrap'  => '<div class="kpmb__field %1$s" %3$s>%2$s</div>',
+				// '%s' будет заменено на заголовок
+				'title_patt'  => '<strong class="kpmb__tit"><label>%s</label></strong>',
+				// '%s' будет заменено на HTML поля (вместе с описанием)
+				'field_patt'  => '%s',
+				// '%s' будет заменено на текст описания
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
+			],
+			'table' => [
+				'css'         => '
+					.kpmb-table td{ padding:.6em .5em; } 
+					.kpmb-table tr:hover{ background:rgba(0,0,0,.03); }
+					.kpmb__sep{ padding:1em .5em; font-weight:600; }
+					.kpmb__desc{ opacity:0.8; }
+				',
+				'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
+				'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
+				'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
+				'field_patt'  => '<td class="field">%s</td>',
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
+			],
+			'grid' => [
+				'css'         => '
+					.kpmb-grid{ margin:-6px -12px -12px }
+					.kpmb-grid__item{ display:grid; grid-template-columns:15em 2fr; grid-template-rows:1fr; border-bottom:1px solid rgba(0,0,0,.1) }
+					.kpmb-grid__item:last-child{ border-bottom:none }
+					.kpmb-grid__title{ padding:1.5em; background:#F9F9F9; border-right:1px solid rgba(0,0,0,.1); font-weight:600 }
+					.kpmb-grid__field{ align-self:center; padding:1em 1.5em }
+					.kpmb__sep{ grid-column: 1 / span 2; display:block; padding:1em; font-size:110%; font-weight:600; }
+					.kpmb__desc{ opacity:0.8; }
+				',
+				'fields_wrap' => '<div class="kpmb-grid">%s</div>',
+				'field_wrap'  => '<div class="kpmb-grid__item %1$s">%2$s</div>',
+				'title_patt'  => '<div class="kpmb-grid__title">%s</div>',
+				'field_patt'  => '<div class="kpmb-grid__field">%s</div>',
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<br><p class="description kpmb__desc --after">%s</p>',
+			],
+		];
+
+		if( is_string( $opt_theme ) ){
+			$def_opt_theme = $def_opt_theme[ $opt_theme ];
+		}
+		// позволяет изменить отдельные поля темы оформелния метабокса
+		else {
+			$opt_theme_key = key( $opt_theme ); // индекс массива
+
+			// в индексе указана тема: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
+			if( isset( $def_opt_theme[ $opt_theme_key ] ) ){
+				$def_opt_theme = $def_opt_theme[ $opt_theme_key ]; // основа
+				$opt_theme     = $opt_theme[ $opt_theme_key ];
+			}
+			// в индексе указана не тема: [ 'desc_before_patt' => '<div>%s</div>' ]
+			else {
+				$def_opt_theme = $def_opt_theme['line']; // основа
+			}
+		}
+
+		$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
+
+		// позволяет изменить тему
+		$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
+
+		// Переменные theme в общие параметры.
+		// Если в параметрах уже есть переменная, то она остается как есть
+		// (это позволяет изменить отдельный элемент темы).
+		foreach( $opt_theme as $kk => $vv ){
+			if( ! isset( $this->opt->$kk ) ){
+				$this->opt->$kk = $vv;
+			}
+		}
+
+	}
+}
+
+/**
+ * Separate class which contains fields.
+ *
+ * You can add your own fields by extend this class like so:
+ *
+ *     add_action( 'kama_post_meta_box__fields_class', function(){
+ *         return 'MY_Post_Meta_Box_Fields';
+ *     } );
+ *
+ *     class MY_Post_Meta_Box_Fields extends Kama_Post_Meta_Box_Fields {
+ *
+ *         // create custom field `my_field`
+ *         public function my_field( $rg, $var, $post ){
+ *
+ *             $field = sprintf( '<input %s type="%s" id="%s" name="%s" value="%s" title="%s">',
+ *                 ( $rg->attr . $var->class  . $var->pholder ),
+ *                 $rg->type,
+ *                 $rg->id,
+ *                 $var->name,
+ *                 esc_attr( $var->val ),
+ *                 esc_attr( $rg->title )
+ *             );
+ *
+ *             return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+ *         }
+ *
+ *         // override default text field
+ *         public function text( $rg, $var, $post ){
+ *
+ *             $field = sprintf( '<input %s type="%s" id="%s" name="%s" value="%s" title="%s">',
+ *                 ( $rg->attr . $var->class  . $var->pholder ),
+ *                 $rg->type,
+ *                 $rg->id,
+ *                 $var->name,
+ *                 esc_attr( $var->val ),
+ *                 esc_attr( $rg->title )
+ *             );
+ *
+ *             return $var->title . $this->kpmb->tpl__field(
+ *                 $this->kpmb->field_desc_concat( $field )
+ *             );
+ *         }
+ *
+ *     }
+ */
+class Kama_Post_Meta_Box_Fields {
+
+	protected $kpmb;
+
+	public function __construct( Kama_Post_Meta_Box $kpmb ){
+		$this->kpmb = $kpmb;
 	}
 
 	// sep
-	protected function field__sep( $rg, $var, $post ){
+	public function sep( $rg, $var, $post ){
 
-		$_style = 'font-weight:600; ';
-		if( preg_match( '/style="([^"]+)"/', $rg->attr, $mm ) ){
-			$_style .= $mm[1];
-		}
+		$class = [ 'kpmb__sep' ];
+		! $rg->title && $class[] = '--hr';
+		$class = implode( ' ', $class );
 
 		if( false !== strpos( $rg->field_patt, '<td' ) ){
-			return str_replace( '<td ', '<td class="kpmb__sep" colspan="2" style="padding:1em .5em; ' . $_style . '"', $this->fn__field( $rg->title ) );
+			return str_replace( '<td ',
+				sprintf( '<td class="%s" colspan="2" %s', $class, $rg->attr ),
+				$this->kpmb->tpl__field( $rg->title )
+			);
 		}
 
-		return '<span class="kpmb__sep" style="display:block; padding:1em; font-size:110%; '. $_style .'">'. $rg->title .'</span>';
+		return sprintf( '<span class="%s" %s>%s</span>', $class, $rg->attr, $rg->title );
 	}
 
 	// textarea
-	protected function field__textarea( $rg, $var, $post ){
-		$_style = (false === strpos($rg->attr,'style=')) ? ' style="width:98%;"' : '';
+	public function textarea( $rg, $var, $post ){
+		$_style = ( false === strpos( $rg->attr, 'style=' ) ) ? ' style="width:98%;"' : '';
 
 		$field = sprintf( '<textarea %s id="%s" name="%s">%s</textarea>',
 			( $rg->attr . $var->class . $var->pholder . $_style ),
 			$rg->id,
 			$var->name,
-			esc_textarea( $rg->val )
+			esc_textarea( $var->val )
 		);
 
-		return $var->title . $this->fn__field( $this->field_desc_concat( $field, $this->fn__desc() ) );
+		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
 	// select
-	protected function field__select( $rg, $var, $post ){
+	public function select( $rg, $var, $post ){
 
 		$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // ассоциативный или нет?
 		$_options = array();
 		foreach( $rg->options as $v => $l ){
 			$_val       = $is_assoc ? $v : $l;
-			$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($rg->val, $_val, 0) .'>'. $l .'</option>';
+			$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($var->val, $_val, 0) .'>'. $l .'</option>';
 		}
 
 		$field = sprintf( '<select %s id="%s" name="%s">%s</select>',
@@ -558,28 +757,40 @@ trait Kama_Post_Meta_Box__Fields {
 			implode("\n", $_options )
 		);
 
-		return $var->title . $this->fn__field( $this->field_desc_concat( $field, $this->fn__desc() ) );
+		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
 	// radio
-	protected function field__radio( $rg, $var, $post ){
+	public function radio( $rg, $var, $post ){
 
 		$radios = array();
 
 		foreach( $rg->options as $v => $l ){
 			$radios[] = '
 			<label '. $rg->attr . $var->class .'>
-				<input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($rg->val, $v, 0) .'>'. $l .'
+				<input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($var->val, $v, 0) .'>'. $l .'
 			</label> ';
 		}
 
 		$field = '<span class="radios">'. implode("\n", $radios ) .'</span>';
 
-		return $var->title . $this->fn__field( $this->field_desc_concat( $field, $this->fn__desc() ) );
+		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
-	// checkbox
-	protected function field__checkbox( $rg, $var, $post ){
+	/**
+	 * Checkbox.
+	 *
+	 * Examples:
+	 *
+	 *     [ 'type'=>'checkbox', 'title'=>'Галочка', 'desc'=>'отметьте, если хотите :)' ]
+	 *
+	 * @param object  $rg
+	 * @param object  $var
+	 * @param WP_Post $post
+	 *
+	 * @return string
+	 */
+	public function checkbox( $rg, $var, $post ){
 
 		$patt = '
 		<label {attrs}>
@@ -589,49 +800,106 @@ trait Kama_Post_Meta_Box__Fields {
 		</label>
 		';
 
+		$value = reset( $rg->options ) ?: 1;
+
 		$field = strtr( $patt, [
 			'{attrs}'     => $rg->attr . $var->class,
 			'{name}'      => $var->name,
 			'{id}'        => $rg->id,
-			'{value}'     => esc_attr(reset($rg->options) ?: 1),
-			'{checked}'   => checked( $rg->val, (reset($rg->options) ?: 1), 0),
-			'{desc}'      => $rg->desc ?: '',
+			'{value}'     => esc_attr( $value ),
+			'{checked}'   => checked( $var->val, $value, 0 ),
+			'{desc}'      => $rg->desc_before ?: '',
 		] );
 
-		return $var->title . $this->fn__field( $field );
+		return $var->title . $this->kpmb->tpl__field( $field );
+	}
+
+	/**
+	 * checkbox multi
+	 *
+	 * Examples:
+	 *
+	 *     [
+	 *         type => checkbox_multi,
+	 *         params => show_inline,
+	 *         options => [
+	 *             [ name => bar, val => label, desc => The checkbox ]
+	 *             [ val => label, desc => The checkbox ]
+	 *         ]
+	 *     ]
+	 *
+	 * @param object  $rg
+	 * @param object  $var
+	 * @param WP_Post $post
+	 *
+	 * @return string
+	 */
+	public function checkbox_multi( $rg, $var, $post ){
+
+		$checkboxes = [];
+
+		foreach( $rg->options as $opt ){
+
+			// val
+			// desc
+			// name
+			$opt = (object) $opt;
+
+			if( ! isset( $opt->desc ) ){
+				$opt->desc = $opt->val;
+			}
+
+			$input_name  = isset( $opt->name ) ? "{$var->name}[$opt->name]" : "{$var->name}[]";
+			$add_hidden  = isset( $opt->name );
+			$input_value = $opt->val ?? 1;
+
+			// checked
+			$checked = '';
+			if( $var->val ){
+				if( isset( $opt->name ) ){
+					$checked = ! empty( $var->val[ $opt->name ] ) ? 'checked="checked"' : '';
+				}
+				else{
+					$var->val = array_map( fn( $val ) => str_replace( ' ', ' ', $val ), $var->val );
+					$checked = in_array( $opt->val, $var->val, true ) ? 'checked="checked"' : '';
+				}
+			}
+
+			$checkboxes[] = '
+				<label>
+					'.( $add_hidden ? '<input type="hidden" name="'. $input_name .'" value="">' : '' ).'
+					<input type="checkbox" name="'. $input_name .'" value="'. $input_value .'" '. $checked .'> '. $opt->desc .'
+				</label>
+				';
+		}
+
+		$sep = in_array( 'show_inline', $rg->params, true ) ? ' &nbsp;&nbsp; ' : ' <br> ';
+
+		// для главного массива
+		$common_hidden = $add_hidden ? '' : '<input type="hidden" name="'. $var->name .'" value="">';
+
+		$field = '
+		<fieldset>
+			<div class="fieldset">'. $common_hidden . implode( "$sep\n", $checkboxes ) .'</div>
+		</fieldset>';
+
+		return $var->title . $this->kpmb->tpl__field( $field );
 	}
 
 	// hidden
-	protected function field__hidden( $rg, $var, $post ){
+	public function hidden( $rg, $var, $post ){
 
 		return sprintf( '<input type="%s" id="%s" name="%s" value="%s" title="%s">',
 			$rg->type,
 			$rg->id,
 			$var->name,
-			esc_attr( $rg->val ),
+			esc_attr( $var->val ),
 			esc_attr( $rg->title )
 		);
-	}
-
-	// text, email, number, url, tel, color, password, date, month, week, range
-	protected function field__default( $rg, $var, $post ){
-
-		$_style = ( $rg->type === 'text' && false === strpos($rg->attr, 'style=') ) ? ' style="width:100%;"' : '';
-
-		$field = sprintf( '<input %s type="%s" id="%s" name="%s" value="%s">',
-			( $rg->attr . $var->class  . $var->pholder . $_style ),
-			$rg->type,
-			$rg->id,
-			$var->name,
-			esc_attr( $rg->val ),
-			esc_attr( $rg->title )
-		);
-
-		return $var->title . $this->fn__field( $this->field_desc_concat( $field, $this->fn__desc() ) );
 	}
 
 	// wp_editor
-	protected function field__wp_editor( $rg, $var, $post ){
+	public function wp_editor( $rg, $var, $post ){
 
 		$ed_args = array_merge( [
 			'textarea_name'    => $var->name, //нужно указывать!
@@ -650,14 +918,14 @@ trait Kama_Post_Meta_Box__Fields {
 		], $rg->options );
 
 		ob_start();
-		wp_editor( $rg->val, $rg->id, $ed_args );
+		wp_editor( $var->val, $rg->id, $ed_args );
 		$field = ob_get_clean();
 
-		return $var->title . $this->fn__field( $this->field_desc_concat( $field, $this->fn__desc() ) );
+		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
 	// image
-	protected function field__image( $rg, $var, $post ){
+	public function image( $rg, $var, $post ){
 
 		wp_enqueue_media();
 
@@ -725,7 +993,7 @@ trait Kama_Post_Meta_Box__Fields {
 
 		$usetype = $rg->options ? $rg->options[0] : 'id'; // может быть: id, url
 
-		if( ! $src = is_numeric( $rg->val ) ? wp_get_attachment_url( $rg->val ) : $rg->val ){
+		if( ! $src = is_numeric( $var->val ) ? wp_get_attachment_url( $var->val ) : $var->val ){
 			$src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 		}
 
@@ -738,100 +1006,40 @@ trait Kama_Post_Meta_Box__Fields {
 				<input class="set_img button button-small" type="button" value="<?= __('Set image') ?>" />
 				<input class="del_img button button-small" type="button" value="<?= __('Remove')?>" />
 
-				<input type="hidden" name="<?= $var->name ?>" value="<?= esc_attr($rg->val) ?>">
+				<input type="hidden" name="<?= $var->name ?>" value="<?= esc_attr($var->val) ?>">
 			</span>
 		</span>
 		<?php
 		$field = ob_get_clean();
 
-		return $var->title . $this->fn__field( $field );
+		return $var->title . $this->kpmb->tpl__field( $field );
+	}
+
+	// text, email, number, url, tel, color, password, date, month, week, range
+	public function default( $rg, $var, $post ){
+
+		$_style = ( $rg->type === 'text' && false === strpos( $rg->attr, 'style=' ) )
+			? ' style="width:100%;"'
+			: '';
+
+		$field = sprintf( '<input %s type="%s" id="%s" name="%s" value="%s" title="%s">',
+			( $rg->attr . $var->class  . $var->pholder . $_style ),
+			$rg->type,
+			$rg->id,
+			$var->name,
+			esc_attr( $var->val ),
+			esc_attr( $rg->title )
+		);
+
+		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
 }
 
-trait Kama_Post_Meta_Box__Themes {
 
-	private function set_theme(): void {
 
-		$opt_theme = & $this->opt->theme;
 
-		$def_opt_theme = [
-			'line' => [
-				// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
-				'css'         => '',
-				// '%s' будет заменено на html всех полей
-				'fields_wrap' => '%s',
-				// '%2$s' будет заменено на html поля (вместе с заголовком, полем и описанием)
-				'field_wrap'  => '<p class="%1$s">%2$s</p>',
-				// '%s' будет заменено на заголовок
-				'title_patt'  => '<strong class="tit"><label>%s</label></strong>',
-				// '%s' будет заменено на HTML поля (вместе с описанием)
-				'field_patt'  => '%s',
-				// '%s' будет заменено на текст описания
-				'desc_patt'   => '<p class="description" style="opacity:0.6;">%s</p>',
-			],
-			'table' => [
-				'css'         => '.kpmb-table td{ padding:.6em .5em; } .kpmb-table tr:hover{ background:rgba(0,0,0,.03); }',
-				'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
-				'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
-				'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
-				'field_patt'  => '<td class="field">%s</td>',
-				'desc_patt'   => '<p class="description" style="opacity:0.8;">%s</p>',
-			],
-			'grid' => [
-				'css'         => '
-					.kpmb-grid{ margin:-6px -12px -12px }
-					.kpmb-grid__item{ display:grid; grid-template-columns:15em 2fr; grid-template-rows:1fr; border-bottom:1px solid rgba(0,0,0,.1) }
-					.kpmb-grid__item:last-child{ border-bottom:none }
-					.kpmb-grid__title{ padding:1.5em; background:#F9F9F9; border-right:1px solid rgba(0,0,0,.1); font-weight:600 }
-					.kpmb-grid__field{ align-self:center; padding:1em 1.5em }
-					.kpmb__sep{ grid-column: 1 / span 2; }
-				',
-				'fields_wrap' => '<div class="kpmb-grid">%s</div>',
-				'field_wrap'  => '<div class="kpmb-grid__item %1$s">%2$s</div>',
-				'title_patt'  => '<div class="kpmb-grid__title">%s</div>',
-				'field_patt'  => '<div class="kpmb-grid__field">%s</div>',
-				'desc_patt'   => '<p class="description" style="opacity:0.8;">%s</p>',
-			],
-		];
 
-		if( is_string( $opt_theme ) ){
-			$def_opt_theme = $def_opt_theme[ $opt_theme ];
-		}
-		// позволяет изменить отдельные поля темы оформелния метабокса
-		else {
-			$opt_theme_key = key( $opt_theme ); // индекс массива
-
-			// в индексе указана тема: [ 'table' => [ 'desc_patt' => '<div>%s</div>' ] ]
-			if( isset( $def_opt_theme[ $opt_theme_key ] ) ){
-				$def_opt_theme = $def_opt_theme[ $opt_theme_key ]; // основа
-				$opt_theme     = $opt_theme[ $opt_theme_key ];
-			}
-			// в индексе указана не тема: [ 'desc_patt' => '<div>%s</div>' ]
-			else {
-				$def_opt_theme = $def_opt_theme['line']; // основа
-			}
-		}
-
-		$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
-
-		if( 'after' === $this->opt->fields_desc_pos ){
-			$opt_theme['desc_patt'] = '<br>'. $opt_theme['desc_patt'];
-		}
-
-		// позволяет изменить тему
-		$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
-
-		// Переменные theme в общие параметры.
-		// Если в параметрах уже есть переменная, то она остается как есть (это позволяет изменить отдельный элемент темы).
-		foreach( $opt_theme as $kk => $vv ){
-			if( ! isset( $this->opt->$kk ) ){
-				$this->opt->$kk = $vv;
-			}
-		}
-
-	}
-}
 
 
 
