@@ -22,7 +22,7 @@ if( class_exists('Kama_Post_Meta_Box') ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.11.0
+ * @version 1.11.1
  */
 class Kama_Post_Meta_Box {
 
@@ -92,80 +92,81 @@ class Kama_Post_Meta_Box {
 	 * @param array           $opt             {
 	 *     Опции по которым будет строиться метаблок.
 	 *
-	 *     @type string       $id                 Иднетификатор блока. Используется как префикс для названия метаполя.
-	 *                                            Начните с '_' >>> '_foo', чтобы ID не был префиксом в названии метаполей.
-	 *     @type string       $title              Заголовок блока.
-	 *     @type string       $desc               Описание для самого метабокса (сразу под заголовком).
-	 *     @type string       $post_type          Описание для метабокса. Можно указать функцию/замыкание, она получит $post.
-	 *     @type string|array $not_post_type      Строка/массив. Типы записей для которых добавляется блок:
-	 *                                            `[ 'post', 'page' ]`. По умолчанию: '' = для всех типов записей.
-	 *     @type string       $post_type_feature  Строка. Возможность которая должна быть у типа записи,
-	 *                                            чтобы метабокс отобразился. See https://wp-kama.ru/post_type_supports
-	 *     @type string       $post_type_options  Массив. Опции типа записи, которые должны быть у типа записи,
-	 *                                            чтобы метабокс отобразился. See перывый параметр https://wp-kama.ru/get_post_types
-	 *     @type string       $priority           Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
-	 *     @type string       $context            Место где должен показываться блок ('normal', 'advanced' или 'side').
-	 *     @type string       $disable_func       Функция отключения метабокса во время вызова самого метабокса.
-	 *                                            Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен.
-	 *                                            Передает объект поста.
-	 *     @type string       $cap                Название права пользователя, чтобы показывать метабокс.
-	 *     @type string       $save_sanitize      Функция очистки сохраняемых в БД полей. Получает 2 параметра:
-	 *                                            $metas - все поля для очистки и $post_id.
-	 *     @type string       $theme              Тема оформления: 'table', 'line', 'grid'.
-	 *                                            ИЛИ массив паттернов полей:
-	 *                                            css, fields_wrap, field_wrap, title_patt, field_patt, desc_before_patt.
-	 *                                            ЕСЛИ Массив указывается так: [ 'desc_before_patt' => '<div>%s</div>' ]
-	 *                                            (за овнову будет взята тема line).
-	 *                                            ЕСЛИ Массив указывается так: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
-	 *                                            (за овнову будет взята тема table).
-	 *                                            ИЛИ изменить тему можно через фильтр 'kp_metabox_theme'
-	 *                                            (удобен для общего изменения темы для всех метабоксов).
-	 *     @type array        $fields {
+	 *     @type string          $id                 Иднетификатор блока. Используется как префикс для названия метаполя.
+	 *                                               Начните с '_' >>> '_foo', чтобы ID не был префиксом в названии метаполей.
+	 *     @type string          $title              Заголовок блока.
+	 *     @type string|callback $desc               Описание для метабокса (сразу под заголовком). Коллбэк получит $post.
+	 *     @type string|array    $post_type          Типы записей для которых добавляется блок:
+	 *                                               `[ 'post', 'page' ]`. По умолчанию: `''` = для всех типов записей.
+	 *     @type string|array    $not_post_type      Типы записей для которых метабокс не должен отображаться.
+	 *     @type string          $post_type_feature  Строка. Возможность которая должна быть у типа записи,
+	 *                                               чтобы метабокс отобразился. See https://wp-kama.ru/post_type_supports
+	 *     @type string          $post_type_options  Массив. Опции типа записи, которые должны быть у типа записи,
+	 *                                               чтобы метабокс отобразился. See перывый параметр https://wp-kama.ru/get_post_types
+	 *     @type string          $priority           Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
+	 *     @type string          $context            Место где должен показываться блок ('normal', 'advanced' или 'side').
+	 *     @type callback        $disable_func       Функция отключения метабокса во время вызова самого метабокса.
+	 *                                               Если вернет что-либо кроме false/null/0/array(), то метабокс будет отключен.
+	 *                                               Передает объект поста.
+	 *     @type string          $cap                Название права пользователя, чтобы показывать метабокс.
+	 *     @type callback        $save_sanitize      Функция очистки сохраняемых в БД полей. Получает 2 параметра:
+	 *                                               $metas - все поля для очистки и $post_id.
+	 *     @type string          $theme              Тема оформления: 'table', 'line', 'grid'.
+	 *                                               ИЛИ массив паттернов полей:
+	 *                                               css, fields_wrap, field_wrap, title_patt, field_patt, desc_before_patt.
+	 *                                               ЕСЛИ Массив указывается так: [ 'desc_before_patt' => '<div>%s</div>' ]
+	 *                                               (за овнову будет взята тема line).
+	 *                                               ЕСЛИ Массив указывается так: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
+	 *                                               (за овнову будет взята тема table).
+	 *                                               ИЛИ изменить тему можно через фильтр 'kp_metabox_theme'
+	 *                                               (удобен для общего изменения темы для всех метабоксов).
+	 *     @type array           $fields {
 	 *         Метаполя. Собственно, сами метаполя. Список возможных ключей массива для каждого поля.
 	 *         See метод field().
 	 *
-	 *         @type string $type            Тип поля: textarea, select, checkbox, radio, image, wp_editor, hidden, sep_*.
-	 *                                       Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
-	 *                                       'sep' - визуальный разделитель, для него нужно указать `title` и можно
-	 *                                       указать `'attr'=>'style="свои стили"'`.
-	 *                                       'sep' - чтобы удобнее указывать тип 'sep' начните ключ поля с
-	 *                                       `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
-	 *                                       Для типа `image` можно указать тип сохраняемого значения в
-	 *                                       `options`: 'options'=>'url'. По умолчанию тип = id.
-	 *                                       По умолчанию 'text'.
-	 *         @type string $title           Заголовок метаполя.
-	 *         @type string $desc            Описание для поля. Можно указать функцию/замыкание, она получит параметры:
-	 *                                       $post, $meta_key, $val, $name.
-	 *         @type string $desc_before     Алиас $desc.
-	 *         @type string $desc_after      Тоже что $desc, только будет выводиться внизу поля.
-	 *         @type string $placeholder     Атрибут placeholder.
-	 *         @type string $id              Атрибут id. По умолчанию: $this->opt->id .'_'. $key.
-	 *         @type string $class           Атрибут class: добавляется в input, textarea, select.
-	 *                                       Для checkbox, radio в оборачивающий label.
-	 *         @type string $attr            Любая строка. Атрибуты HTML тега элемента формы (input).
-	 *         @type string $wrap_attr       Любая строка. Атрибуты HTML тега оборачивающего поле: `style="width:50%;"`.
-	 *         @type string $val             Значение по умолчанию, если нет сохраненного.
-	 *         @type string $options         массив: array('значение'=>'название') - варианты для типов 'select', 'radio'.
-	 *                                       Для 'wp_editor' стенет аргументами.
-	 *                                       Для 'checkbox' станет значением атрибута value: <input type="checkbox" value="{options}">.
-	 *                                       Для 'image' определяет тип сохраняемого в метаполе значения:
-	 *                                       id (ID вложения), url (url вложения).
-	 *         @type string $callback        Название функции, которая отвечает за вывод поля.
-	 *                                       Если указана, то ни один параметр не учитывается и за вывод
-	 *                                       полностью отвечает указанная функция.
-	 *                                       Получит параметры: $args, $post, $name, $val, $rg, $var
-	 *         @type string $sanitize_func   Функция очистки данных при сохранении - название функции или Closure.
-	 *                                       Укажите 'none', чтобы не очищать данные...
-	 *                                       Работает, только если не установлен глобальный параметр 'save_sanitize'...
-	 *                                       Получит параметр $value - сохраняемое значение поля.
-	 *         @type string $output_func     Функция обработки значения, перед выводом в поле.
-	 *                                       Получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
-	 *         @type string $update_func     Функция сохранения значения в метаполя.
-	 *                                       Получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
-	 *         @type string $disable_func    Функция отключения поля.
-	 *                                       Если не false/null/0/array() - что-либо вернет, то поле не будет выведено.
-	 *                                       Получает парамтры: $post, $meta_key
-	 *         @type string $cap             Название права пользователя, чтобы видеть и изменять поле.
+	 *         @type string $type                 Тип поля: textarea, select, checkbox, radio, image, wp_editor, hidden, sep_*.
+	 *                                            Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
+	 *                                            'sep' - визуальный разделитель, для него нужно указать `title` и можно
+	 *                                            указать `'attr'=>'style="свои стили"'`.
+	 *                                            'sep' - чтобы удобнее указывать тип 'sep' начните ключ поля с
+	 *                                            `sep_`: 'sep_1' => [ 'title'=>'Разделитель' ].
+	 *                                            Для типа `image` можно указать тип сохраняемого значения в
+	 *                                            `options`: 'options'=>'url'. По умолчанию тип = id.
+	 *                                            По умолчанию 'text'.
+	 *         @type string $title                Заголовок метаполя.
+	 *         @type string|callback $desc        Описание для поля. Можно указать функцию/замыкание, она получит параметры:
+	 *                                            $post, $meta_key, $val, $name.
+	 *         @type string|callback $desc_before Алиас $desc.
+	 *         @type string|callback $desc_after  Тоже что $desc, только будет выводиться внизу поля.
+	 *         @type string $placeholder          Атрибут placeholder.
+	 *         @type string $id                   Атрибут id. По умолчанию: $this->opt->id .'_'. $key.
+	 *         @type string $class                Атрибут class: добавляется в input, textarea, select.
+	 *                                            Для checkbox, radio в оборачивающий label.
+	 *         @type string $attr                 Любая строка. Атрибуты HTML тега элемента формы (input).
+	 *         @type string $wrap_attr            Любая строка. Атрибуты HTML тега оборачивающего поле: `style="width:50%;"`.
+	 *         @type string $val                  Значение по умолчанию, если нет сохраненного.
+	 *         @type string $options              массив: array('значение'=>'название') - варианты для типов 'select', 'radio'.
+	 *                                            Для 'wp_editor' стенет аргументами.
+	 *                                            Для 'checkbox' станет значением атрибута value:
+	 *                                            <input type="checkbox" value="{options}">.
+	 *                                            Для 'image' определяет тип сохраняемого в метаполе значения:
+	 *                                            id (ID вложения), url (url вложения).
+	 *         @type callback $callback           Название функции, которая отвечает за вывод поля.
+	 *                                            Если указана, то ни один параметр не учитывается и за вывод
+	 *                                            полностью отвечает указанная функция.
+	 *                                            Получит параметры: $args, $post, $name, $val, $rg, $var
+	 *         @type callback $sanitize_func      Функция очистки данных при сохранении - название функции или Closure.
+	 *                                            Укажите 'none', чтобы не очищать данные...
+	 *                                            Работает, только если не установлен глобальный параметр 'save_sanitize'...
+	 *                                            Получит параметр $value - сохраняемое значение поля.
+	 *         @type callback $output_func        Функция обработки значения, перед выводом в поле.
+	 *                                            Получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
+	 *         @type callback $update_func        Функция сохранения значения в метаполя.
+	 *                                            Получит параметры: $post, $meta_key, $value - объект записи, ключ, значение метаполей.
+	 *         @type callback $disable_func       Функция отключения поля.
+	 *                                            Если не false/null/0/array() - что-либо вернет, то поле не будет выведено.
+	 *                                            Получает парамтры: $post, $meta_key
+	 *         @type string $cap                  Название права пользователя, чтобы видеть и изменять поле.
 	 *     }
 	 *
 	 * }
@@ -303,11 +304,11 @@ class Kama_Post_Meta_Box {
 			// no data
 			! ( $save_metadata = isset( $_POST[ $key = "{$this->id}_meta" ] ) ? $_POST[ $key ] : '' )
 			// Exit, if it is autosave.
-		    || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
+			|| ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
 			// nonce check
-		    || ! wp_verify_nonce( $_POST['_wpnonce'], "update-post_$post_id" )
+			|| ! wp_verify_nonce( $_POST['_wpnonce'], "update-post_$post_id" )
 			// unsuitable post type
-		    || ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type, true ) )
+			|| ( $this->opt->post_type && ! in_array( $post->post_type, (array) $this->opt->post_type, true ) )
 		){
 			return;
 		}
@@ -506,8 +507,8 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		// произвольная функция
 		if( is_callable( $rg->callback ) ){
 			$out = $var->title . $this->tpl__field(
-				call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
-			);
+					call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
+				);
 		}
 		// произвольный метод
 		// вызов метода `$this->field__{FIELD}()` (для возможности расширить этот класс)
