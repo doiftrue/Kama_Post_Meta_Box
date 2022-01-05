@@ -111,18 +111,18 @@ class Kama_Post_Meta_Box {
 	 *     @type string          $cap                Название права пользователя, чтобы показывать метабокс.
 	 *     @type callback        $save_sanitize      Функция очистки сохраняемых в БД полей. Получает 2 параметра:
 	 *                                               $metas - все поля для очистки и $post_id.
-	 *     @type string          $theme              Тема оформления: 'table', 'line', 'grid'.
+	 *     @type string          $theme              Тема оформления: `table`, `line`, `grid`.
 	 *                                               ИЛИ массив паттернов полей:
 	 *                                               css, fields_wrap, field_wrap, title_patt, field_patt, desc_before_patt.
-	 *                                               ЕСЛИ Массив указывается так: [ 'desc_before_patt' => '<div>%s</div>' ]
+	 *                                               ЕСЛИ Массив указывается так: `[ 'desc_before_patt' => '<div>%s</div>' ]`
 	 *                                               (за овнову будет взята тема line).
-	 *                                               ЕСЛИ Массив указывается так: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
+	 *                                               ЕСЛИ Массив указывается так:
+	 *                                               `[ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]`
 	 *                                               (за овнову будет взята тема table).
 	 *                                               ИЛИ изменить тему можно через фильтр 'kp_metabox_theme'
 	 *                                               (удобен для общего изменения темы для всех метабоксов).
 	 *     @type array           $fields {
 	 *         Метаполя. Собственно, сами метаполя. Список возможных ключей массива для каждого поля.
-	 *         See метод field().
 	 *
 	 *         @type string $type                 Тип поля: textarea, select, checkbox, radio, image, wp_editor, hidden, sep_*.
 	 *                                            Или базовые: text, email, number, url, tel, color, password, date, month, week, range.
