@@ -139,16 +139,16 @@ class Kama_Post_Meta_Box {
 	 *         @type string|callback $desc_before Алиас $desc.
 	 *         @type string|callback $desc_after  Тоже что $desc, только будет выводиться внизу поля.
 	 *         @type string $placeholder          Атрибут placeholder.
-	 *         @type string $id                   Атрибут id. По умолчанию: $this->opt->id .'_'. $key.
+	 *         @type string $id                   Атрибут id. По умолчанию: `{$this->opt->id}_{$key}`.
 	 *         @type string $class                Атрибут class: добавляется в input, textarea, select.
 	 *                                            Для checkbox, radio в оборачивающий label.
 	 *         @type string $attr                 Любая строка. Атрибуты HTML тега элемента формы (input).
 	 *         @type string $wrap_attr            Любая строка. Атрибуты HTML тега оборачивающего поле: `style="width:50%;"`.
 	 *         @type string $val                  Значение по умолчанию, если нет сохраненного.
-	 *         @type string $options              массив: array('значение'=>'название') - варианты для типов 'select', 'radio'.
+	 *         @type string $options              массив: `array('значение'=>'название')` - варианты для типов `select`, `radio`.
 	 *                                            Для 'wp_editor' стенет аргументами.
 	 *                                            Для 'checkbox' станет значением атрибута value:
-	 *                                            <input type="checkbox" value="{options}">.
+	 *                                            `<input type="checkbox" value="{options}">`.
 	 *                                            Для 'image' определяет тип сохраняемого в метаполе значения:
 	 *                                            id (ID вложения), url (url вложения).
 	 *         @type callback $callback           Название функции, которая отвечает за вывод поля.
