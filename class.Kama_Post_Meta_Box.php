@@ -5,24 +5,24 @@ if( class_exists('Kama_Post_Meta_Box') ){
 }
 
 /**
- * Создает блок произвольных полей для указанных типов записей.
+ * Creates a block of custom fields for the specified post types.
  *
- * Возможные параметры класса, смотрите в: Kama_Post_Meta_Box::__construct()
- * Возможные параметры для каждого поля, смотрите в: Kama_Post_Meta_Box::field()
+ * Possible parameters of the class, see: `Kama_Post_Meta_Box::__construct()`.
+ * Possible parameters for each field, see in: `Kama_Post_Meta_Box::field()`.
  *
- * При сохранении, очищает каждое поле, через: wp_kses() или sanitize_text_field().
- * Функцию очистки можно заменить через хук 'kpmb_save_sanitize_{$id}' и
- * также можно указать название функции очистки в параметре 'save_sanitize'.
- * Если указать функции очистки и в параметре, и в хуке, то будут работать обе!
- * Обе функции очистки получают данные: $metas - все метаполя, $post_id - ID записи.
+ * When saved, clears each field, via: `wp_kses()` or sanitize_text_field().
+ * The sanitizing function can be replaced via a hook `kpmb_save_sanitize_{id}`.
+ * And You can also specify the name of the sanitizing function in the `save_sanitize` parameter.
+ * If you specify a sanitizing function in both a parameter and a hook, then both will work!
+ * Both sanitizing functions gets two parameters: `$metas` (all meta-fields), `$post_id`.
  *
- * Блок выводиться и метаполя сохраняются для юзеров с правом редактировать текущую запись.
+ * The block is rendered and the meta-fields are saved for users with edit current post capability only.
  *
  * PHP: 7+
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.11.1
+ * @version 1.11.2
  */
 class Kama_Post_Meta_Box {
 
@@ -55,8 +55,8 @@ class Kama_Post_Meta_Box {
 		'save_sanitize'     => '',
 		'theme'             => 'table',
 		'fields'            => [
-			'foo' => [ 'title' => 'Первое метаполе' ],
-			'bar' => [ 'title' => 'Второе метаполе' ],
+			'foo' => [ 'title' => 'First meta-field' ],
+			'bar' => [ 'title' => 'Second meta-field' ],
 		],
 	];
 
@@ -72,7 +72,7 @@ class Kama_Post_Meta_Box {
 		'attr'          => '',
 		'val'           => '',
 		'options'       => '',
-		'params'        => [], // дополнительные параметры поля
+		'params'        => [], // additional field options
 		'callback'      => '',
 		'sanitize_func' => '',
 		'output_func'   => '',
@@ -81,9 +81,9 @@ class Kama_Post_Meta_Box {
 		'cap'           => '',
 
 		// служебные
-		'key'           => '', // Обязательный! Автоматический
-		'title_patt'    => '', // Обязательный! Автоматический
-		'field_patt'    => '', // Обязательный! Автоматический
+		'key'           => '', // Mandatory! Automatic
+		'title_patt'    => '', // Mandatory! Automatic
+		'field_patt'    => '', // Mandatory! Automatic
 	];
 
 	/**
@@ -184,23 +184,23 @@ class Kama_Post_Meta_Box {
 
 	public function init_hooks(): void {
 
-		// может метабокс отключен по праву
+		// maybe the metabox is disabled by capability.
 		if( $this->opt->cap && ! current_user_can( $this->opt->cap ) ){
 			return;
 		}
 
-		// тема оформления
+		// design theme.
 		$this->set_theme();
 
-		// создадим уникальный ID объекта
+		// create a unique object ID.
 		$_opt = (array) clone $this->opt;
-		// удалим все closure
+		// delete all closures.
 		array_walk_recursive( $_opt, static function( &$val, $key ){
 			( $val instanceof Closure ) && $val = '';
 		});
 		$this->id = substr( md5( serialize( $_opt ) ), 0, 7 ); // ID экземпляра
 
-		// сохраним ссылку на экземпляр, чтобы к нему был доступ
+		// keep a reference to the instance so that it can be accessed.
 		self::$instances[ $this->opt->id ][ $this->id ] = & $this;
 
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ], 10, 2 );
@@ -241,9 +241,9 @@ class Kama_Post_Meta_Box {
 	}
 
 	/**
-	 * Выводит HTML код блока.
+	 * Outputs the HTML code of the block.
 	 *
-	 * @param object $post Объект записи
+	 * @param object $post Post object.
 	 */
 	public function meta_box( $post ){
 
@@ -291,12 +291,12 @@ class Kama_Post_Meta_Box {
 	}
 
 	/**
-	 * Сохраняем данные, при сохранении поста.
+	 * Saving data, when saving a post.
 	 *
-	 * @param int     $post_id ID записи.
+	 * @param int     $post_id Record ID.
 	 * @param WP_Post $post
 	 *
-	 * @return void|null False если проверка не пройдена.
+	 * @return void|null False If the check is not passed.
 	 */
 	public function meta_box_save( $post_id, $post ): void {
 
@@ -313,19 +313,23 @@ class Kama_Post_Meta_Box {
 			return;
 		}
 
-		// оставим только поля текущего класса (защиты от подмены поля)
+		// leave only the fields of the current class (protection against field swapping)
 		$_key_prefix = $this->_key_prefix();
 		$fields_data = array();
 		foreach( $this->opt->fields as $_key => $rg ){
 			$meta_key = $_key_prefix . $_key;
 
-			// недостаточно прав
+			// not enough rights
 			if( ! empty( $rg['cap'] ) && ! current_user_can( $rg['cap'] ) ){
 				continue;
 			}
 
-			// пропускаем отключенные поля
-			if( ! empty( $rg['disable_func'] ) && is_callable( $rg['disable_func'] ) && call_user_func( $rg['disable_func'], $post, $meta_key ) ){
+			// Skip the disabled fields
+			if(
+				! empty( $rg['disable_func'] )
+				&& is_callable( $rg['disable_func'] )
+				&& call_user_func( $rg['disable_func'], $post, $meta_key )
+			){
 				continue;
 			}
 
@@ -334,24 +338,27 @@ class Kama_Post_Meta_Box {
 		$fields_names  = array_keys( $fields_data );
 		$save_metadata = array_intersect_key( $save_metadata, array_flip( $fields_names ) );
 
-		// Очистка
+		// Sanitizing
 		if( 'sanitize' ){
 
-			// своя функция очистки
+			// Own sanitizing.
 			if( is_callable( $this->opt->save_sanitize ) ){
 				$save_metadata = call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
 				$sanitized = true;
 			}
-			// хук очистки
+
+			// Sanitizing hook.
 			if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
 				$save_metadata = apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
 				$sanitized = true;
 			}
-			// если нет функции и хука очистки, то чистим все поля с помощью wp_kses() или sanitize_text_field()
+
+			// If there is no sanitizing function or hook, then clean all fields with wp_kses() or sanitize_text_field().
 			if( empty( $sanitized ) ){
 
 				foreach( $save_metadata as $meta_key => & $value ){
-					// есть функция очистки отдельного поля
+
+					// there is a function for cleaning a separate field
 					if(
 						! empty( $fields_data[ $meta_key ]['sanitize_func'] )
 						&&
@@ -359,15 +366,15 @@ class Kama_Post_Meta_Box {
 					){
 						$value = call_user_func( $fields_data[ $meta_key ]['sanitize_func'], $value );
 					}
-					// не чистим
+					// do not clean
 					elseif( 'none' === ( $fields_data[$meta_key]['sanitize_func'] ?? '' ) ){
 						// skip
 					}
-					// не чистим - видимо это произвольная функция вывода полей, которая сохраняет массив
+					// do not clean - apparently it is an arbitrary field output function that saves an array
 					elseif( is_array( $value ) ){
 						// skip
 					}
-					// нет функции очистки отдельного поля
+					// there is no function for cleaning an individual field
 					else {
 
 						$type = !empty($fields_data[$meta_key]['type']) ? $fields_data[$meta_key]['type'] : 'text';
@@ -390,13 +397,11 @@ class Kama_Post_Meta_Box {
 				}
 				unset( $value );
 			}
-
-
 		}
 
 		// Save
 		foreach( $save_metadata as $meta_key => $value ){
-			// если есть функция сохранения
+			// If there is a save function
 			if(
 				! empty( $fields_data[ $meta_key ]['update_func'] )
 				&&
@@ -432,17 +437,17 @@ trait Kama_Post_Meta_Box__Fields_Part {
 	protected $_var;
 
 	/**
-	 * Выводит отдельные мета поля.
+	 * Outputs individual meta field.
 	 *
-	 * @param string $name Атрибут name.
-	 * @param array  $args Параметры поля.
-	 * @param object $post Объект текущего поста.
+	 * @param string $name The name attribute.
+	 * @param array  $args Field parameters.
+	 * @param object $post The object of the current post.
 	 *
-	 * @return string|null HTML код
+	 * @return string|null HTML code
 	 */
 	protected function field( $args, $post ){
 
-		// внутренние переменные этой фукнции, будут переданы в методы
+		// internal variables of this function, will be transferred to the methods
 		$var = (object) [];
 
 		$rg = (object) array_merge( self::FIELD_ARGS, $args );
@@ -468,7 +473,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 
 		$var->meta_key = $this->_key_prefix() . $rg->key;
 
-		// поле отключено
+		// the field is disabled
 		if(
 			$rg->disable_func
 			&& is_callable( $rg->disable_func )
@@ -487,7 +492,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 
 		$rg->id = $rg->id ?: "{$this->opt->id}_{$rg->key}";
 
-		// при табличной теме, td заголовка должен выводиться всегда!
+		// with a table theme, the td header should always be output!
 		if( false !== strpos( $rg->title_patt, '<td ' ) ){
 			$var->title = sprintf( $rg->title_patt, $rg->title ) . ( $rg->title ? ' ' : '' );
 		}
@@ -504,14 +509,14 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		$this->_post = $post;
 		$this->_var = $var;
 
-		// произвольная функция
+		// arbitrary function
 		if( is_callable( $rg->callback ) ){
 			$out = $var->title . $this->tpl__field(
 					call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
 				);
 		}
-		// произвольный метод
-		// вызов метода `$this->field__{FIELD}()` (для возможности расширить этот класс)
+		// arbitrary method
+		// Call the method `$this->field__{FIELD}()` (to be able to extend this class)
 		elseif( method_exists( $this->fields, $rg->type ) ){
 			$out = $this->fields->{ $rg->type }( $rg, $var, $post, $args );
 		}
@@ -566,7 +571,7 @@ trait Kama_Post_Meta_Box__Themes {
 
 		$def_opt_theme = [
 			'line' => [
-				// CSS стили всего блока. Например: '.postbox .tit{ font-weight:bold; }'
+				// CSS styles of the whole block. For example: '.postbox .tit{ font-weight:bold; }'
 				'css'         => '
 					.kpmb{ display: flex; flex-wrap: wrap; justify-content: space-between; }
 					.kpmb > * { width:100%; }
@@ -577,15 +582,15 @@ trait Kama_Post_Meta_Box__Themes {
 				    .kpmb__sep{ display:block; padding:1em; font-size:110%; font-weight:600; }
 				    .kpmb__sep.--hr{ padding: 0; height: 1px; background: #eee; margin: 1em -12px 0 -12px; }
 			    ',
-				// '%s' будет заменено на html всех полей
+				// '%s' will be replaced by the html of all fields
 				'fields_wrap' => '<div class="kpmb">%s</div>',
-				// '%2$s' будет заменено на html поля (вместе с заголовком, полем и описанием)
+				// '%2$s' will be replaced by field HTML (along with title, field and description)
 				'field_wrap'  => '<div class="kpmb__field %1$s" %3$s>%2$s</div>',
-				// '%s' будет заменено на заголовок
+				// '%s' will be replaced by the header
 				'title_patt'  => '<strong class="kpmb__tit"><label>%s</label></strong>',
-				// '%s' будет заменено на HTML поля (вместе с описанием)
+				// '%s' will be replaced by field HTML (along with description)
 				'field_patt'  => '%s',
-				// '%s' будет заменено на текст описания
+				// '%s' will be replaced by the description text
 				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
 				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
 			],
@@ -625,7 +630,7 @@ trait Kama_Post_Meta_Box__Themes {
 		if( is_string( $opt_theme ) ){
 			$def_opt_theme = $def_opt_theme[ $opt_theme ];
 		}
-		// позволяет изменить отдельные поля темы оформелния метабокса
+		// allows you to change individual fields of the metabox theme
 		else {
 			$opt_theme_key = key( $opt_theme ); // индекс массива
 
@@ -642,12 +647,12 @@ trait Kama_Post_Meta_Box__Themes {
 
 		$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
 
-		// позволяет изменить тему
+		// allows you to change the theme
 		$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
 
-		// Переменные theme в общие параметры.
-		// Если в параметрах уже есть переменная, то она остается как есть
-		// (это позволяет изменить отдельный элемент темы).
+		// Theme variables to global parameters.
+		// If there is already a variable in the parameters, it stays as is
+		// (this allows to change an individual theme element).
 		foreach( $opt_theme as $kk => $vv ){
 			if( ! isset( $this->opt->$kk ) ){
 				$this->opt->$kk = $vv;
@@ -659,6 +664,9 @@ trait Kama_Post_Meta_Box__Themes {
 
 /**
  * Separate class which contains fields.
+ *
+ * @method field_desc_concat( $field ) See: Kama_Post_Meta_Box__Fields_Part::field_desc_concat()
+ * @method tpl__field( $field )        See: Kama_Post_Meta_Box__Fields_Part::tpl__field()
  *
  * You can add your own fields by extend this class like so:
  *
@@ -680,7 +688,7 @@ trait Kama_Post_Meta_Box__Themes {
  *                 esc_attr( $rg->title )
  *             );
  *
- *             return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+ *             return $var->title . $this->tpl__field( $this->field_desc_concat( $field ) );
  *         }
  *
  *         // override default text field
@@ -695,8 +703,8 @@ trait Kama_Post_Meta_Box__Themes {
  *                 esc_attr( $rg->title )
  *             );
  *
- *             return $var->title . $this->kpmb->tpl__field(
- *                 $this->kpmb->field_desc_concat( $field )
+ *             return $var->title . $this->tpl__field(
+ *                 $this->field_desc_concat( $field )
  *             );
  *         }
  *
@@ -704,10 +712,20 @@ trait Kama_Post_Meta_Box__Themes {
  */
 class Kama_Post_Meta_Box_Fields {
 
+	/** @var Kama_Post_Meta_Box  */
 	protected $kpmb;
 
 	public function __construct( Kama_Post_Meta_Box $kpmb ){
 		$this->kpmb = $kpmb;
+	}
+
+	public function __call( $name, $params ){
+
+		if( method_exists( $this->kpmb, $name ) ){
+			return $this->kpmb->$name( ...$params );
+		}
+
+		return null;
 	}
 
 	// sep
@@ -744,7 +762,7 @@ class Kama_Post_Meta_Box_Fields {
 	// select
 	public function select( $rg, $var, $post ){
 
-		$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // ассоциативный или нет?
+		$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // associative or not?
 		$_options = array();
 		foreach( $rg->options as $v => $l ){
 			$_val       = $is_assoc ? $v : $l;
@@ -783,7 +801,7 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * Examples:
 	 *
-	 *     [ 'type'=>'checkbox', 'title'=>'Галочка', 'desc'=>'отметьте, если хотите :)' ]
+	 *     [ 'type'=>'checkbox', 'title'=>'Check me', 'desc'=>'mark it if you want to :)' ]
 	 *
 	 * @param object  $rg
 	 * @param object  $var
@@ -876,7 +894,7 @@ class Kama_Post_Meta_Box_Fields {
 
 		$sep = in_array( 'show_inline', $rg->params, true ) ? ' &nbsp;&nbsp; ' : ' <br> ';
 
-		// для главного массива
+		// for the main array
 		$common_hidden = $add_hidden ? '' : '<input type="hidden" name="'. $var->name .'" value="">';
 
 		$field = '
@@ -903,9 +921,9 @@ class Kama_Post_Meta_Box_Fields {
 	public function wp_editor( $rg, $var, $post ){
 
 		$ed_args = array_merge( [
-			'textarea_name'    => $var->name, //нужно указывать!
+			'textarea_name'    => $var->name, // must be specified!
 			'editor_class'     => $rg->class,
-			// изменяемое
+			// changeable
 			'wpautop'          => 1,
 			'textarea_rows'    => 5,
 			'tabindex'         => null,
@@ -1036,7 +1054,6 @@ class Kama_Post_Meta_Box_Fields {
 	}
 
 }
-
 
 
 
