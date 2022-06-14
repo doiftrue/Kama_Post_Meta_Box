@@ -216,7 +216,7 @@ class Kama_Post_Meta_Box {
 
 		$opt = $this->opt;
 
-		if( is_string( $opt->post_type_options ) ){
+		if( $opt->post_type_options && is_string( $opt->post_type_options ) ){
 			$opt->post_type_options = [ $opt->post_type_options => 1 ];
 		}
 
@@ -241,6 +241,7 @@ class Kama_Post_Meta_Box {
 			}
 		}
 		else {
+
 			add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_types, $opt->context, $opt->priority );
 		}
 
