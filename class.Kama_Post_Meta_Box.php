@@ -22,7 +22,7 @@ if( class_exists('Kama_Post_Meta_Box') ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.11.2
+ * @version 1.12.0
  */
 class Kama_Post_Meta_Box {
 
@@ -100,9 +100,9 @@ class Kama_Post_Meta_Box {
 	 *                                               `[ 'post', 'page' ]`. По умолчанию: `''` = для всех типов записей.
 	 *     @type string|array    $not_post_type      Типы записей для которых метабокс не должен отображаться.
 	 *     @type string          $post_type_feature  Строка. Возможность которая должна быть у типа записи,
-	 *                                               чтобы метабокс отобразился. See https://wp-kama.ru/post_type_supports
+	 *                                               чтобы метабокс отобразился. {@see https://wp-kama.ru/post_type_supports}.
 	 *     @type string          $post_type_options  Массив. Опции типа записи, которые должны быть у типа записи,
-	 *                                               чтобы метабокс отобразился. See перывый параметр https://wp-kama.ru/get_post_types
+	 *                                               чтобы метабокс отобразился. {@see https://wp-kama.ru/get_post_types}.
 	 *     @type string          $priority           Приоритет блока для показа выше или ниже остальных блоков ('high' или 'low').
 	 *     @type string          $context            Место где должен показываться блок ('normal', 'advanced' или 'side').
 	 *     @type callback        $disable_func       Функция отключения метабокса во время вызова самого метабокса.
@@ -173,6 +173,11 @@ class Kama_Post_Meta_Box {
 	 */
 	public function __construct( array $opt ){
 
+		// do nothing on front
+		if( ! is_admin() && ! defined('DOING_AJAX') ){
+			return;
+		}
+
 		$this->opt = (object) array_merge( self::METABOX_ARGS, $opt );
 
 		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', 'Kama_Post_Meta_Box_Fields' );
@@ -190,7 +195,7 @@ class Kama_Post_Meta_Box {
 		}
 
 		// design theme.
-		$this->set_theme();
+		add_action( 'current_screen', [ $this, '_set_theme' ], 20 );
 
 		// create a unique object ID.
 		$_opt = (array) clone $this->opt;
@@ -211,13 +216,17 @@ class Kama_Post_Meta_Box {
 
 		$opt = $this->opt;
 
+		if( is_string( $opt->post_type_options ) ){
+			$opt->post_type_options = [ $opt->post_type_options => 1 ];
+		}
+
 		/** @noinspection NotOptimalIfConditionsInspection */
 		if(
 			in_array( $post_type, [ 'comment', 'link' ], true )
 			|| ! current_user_can( get_post_type_object( $post_type )->cap->edit_post, $post->ID )
 			|| ( $opt->post_type_feature && ! post_type_supports( $post_type, $opt->post_type_feature ) )
 			|| ( $opt->post_type_options && ! in_array( $post_type, get_post_types( $opt->post_type_options, 'names', 'or' ), true ) )
-			|| ( $opt->disable_func && is_callable($opt->disable_func) && call_user_func( $opt->disable_func, $post ) )
+			|| ( $opt->disable_func && is_callable( $opt->disable_func ) && call_user_func( $opt->disable_func, $post ) )
 			|| in_array( $post_type, (array) $opt->not_post_type, true )
 		){
 			return;
@@ -565,7 +574,8 @@ trait Kama_Post_Meta_Box__Fields_Part {
 
 trait Kama_Post_Meta_Box__Themes {
 
-	private function set_theme(): void {
+	public function _set_theme(): void {
+		$cs = get_current_screen();
 
 		$opt_theme = & $this->opt->theme;
 
@@ -596,7 +606,7 @@ trait Kama_Post_Meta_Box__Themes {
 			],
 			'table' => [
 				'css'         => '
-					.kpmb-table td{ padding:.6em .5em; } 
+					.kpmb-table td{ padding:.6em .5em; }
 					.kpmb-table tr:hover{ background:rgba(0,0,0,.03); }
 					.kpmb__sep{ padding:1em .5em; font-weight:600; }
 					.kpmb__desc{ opacity:0.8; }
@@ -610,7 +620,7 @@ trait Kama_Post_Meta_Box__Themes {
 			],
 			'grid' => [
 				'css'         => '
-					.kpmb-grid{ margin:-6px -12px -12px }
+					.kpmb-grid{ margin: '.( $cs->is_block_editor ? '-6px -24px -24px' : '-6px -12px -12px' ).' }
 					.kpmb-grid__item{ display:grid; grid-template-columns:15em 2fr; grid-template-rows:1fr; border-bottom:1px solid rgba(0,0,0,.1) }
 					.kpmb-grid__item:last-child{ border-bottom:none }
 					.kpmb-grid__title{ padding:1.5em; background:#F9F9F9; border-right:1px solid rgba(0,0,0,.1); font-weight:600 }
