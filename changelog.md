@@ -1,4 +1,10 @@
 
+1.12.0  — 15.06.2022
+- set_theme() moved to `current_screen` hook to have ability to use get_current_screen() function on `kp_metabox_theme` hook.
+- `post_type_options` parameter improvements.
+- Fix of `grid` theme for block_editor.
+- Code now works only in admin and AJAX - do nothing on front.
+
 1.11.0  — 3.11.2021
 - Removed parameter `fields_desc_pos`.
 - New: parameters `desc_before`, `desc_after`.
