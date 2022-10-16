@@ -1,6 +1,6 @@
 <?php
 
-if( class_exists('Kama_Post_Meta_Box') ){
+if( class_exists( 'Kama_Post_Meta_Box' ) ){
 	return;
 }
 
@@ -22,7 +22,7 @@ if( class_exists('Kama_Post_Meta_Box') ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.12.0
+ * @version 1.12.1
  */
 class Kama_Post_Meta_Box {
 
@@ -145,6 +145,7 @@ class Kama_Post_Meta_Box {
 	 *         @type string $attr                 Любая строка. Атрибуты HTML тега элемента формы (input).
 	 *         @type string $wrap_attr            Любая строка. Атрибуты HTML тега оборачивающего поле: `style="width:50%;"`.
 	 *         @type string $val                  Значение по умолчанию, если нет сохраненного.
+	 *         @type string $params               Дополнительные параметры поля. У каждого свои (см. код метода поля).
 	 *         @type string $options              массив: `array('значение'=>'название')` - варианты для типов `select`, `radio`.
 	 *                                            Для 'wp_editor' стенет аргументами.
 	 *                                            Для 'checkbox' станет значением атрибута value:
@@ -251,11 +252,11 @@ class Kama_Post_Meta_Box {
 	}
 
 	/**
-	 * Outputs the HTML code of the block.
+	 * Displays the HTML code of the meta block.
 	 *
-	 * @param object $post Post object.
+	 * @param WP_Post $post Post object.
 	 */
-	public function meta_box( $post ){
+	public function meta_box( $post ): void {
 
 		$fields_out = $hidden_out = '';
 
@@ -267,7 +268,7 @@ class Kama_Post_Meta_Box {
 			}
 
 			empty( $args['title_patt'] ) && $args['title_patt'] = $this->opt->title_patt ?? '%s';
-			empty( $args['desc_before_patt'] )  && $args['desc_before_patt']  = $this->opt->desc_before_patt  ?? '%s';
+			empty( $args['desc_before_patt'] ) && $args['desc_before_patt']  = $this->opt->desc_before_patt ?? '%s';
 			empty( $args['field_patt'] ) && $args['field_patt'] = $this->opt->field_patt ?? '%s';
 
 			$args['key'] = $key;
@@ -293,7 +294,9 @@ class Kama_Post_Meta_Box {
 				: '<p class="description">' . $this->opt->desc . '</p>';
 		}
 
-		echo ( $this->opt->css ? '<style>'. $this->opt->css .'</style>' : '' ) .
+		$style = $this->opt->css ? "<style>{$this->opt->css}</style>" : '';
+
+		echo $style .
 		     $metabox_desc .
 		     $hidden_out .
 		     sprintf( ( $this->opt->fields_wrap ?: '%s' ), $fields_out ) .
@@ -449,13 +452,13 @@ trait Kama_Post_Meta_Box__Fields_Part {
 	/**
 	 * Outputs individual meta field.
 	 *
-	 * @param string $name The name attribute.
-	 * @param array  $args Field parameters.
-	 * @param object $post The object of the current post.
+	 * @param string  $name  The name attribute.
+	 * @param array   $args  Field parameters.
+	 * @param WP_Post $post  The object of the current post.
 	 *
 	 * @return string|null HTML code
 	 */
-	protected function field( $args, $post ){
+	protected function field( array $args, $post ): string {
 
 		// internal variables of this function, will be transferred to the methods
 		$var = (object) [];
@@ -463,7 +466,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		$rg = (object) array_merge( self::FIELD_ARGS, $args );
 
 		if( $rg->cap && ! current_user_can( $rg->cap ) ){
-			return null;
+			return '';
 		}
 
 		if( strpos( $rg->key, 'sep_' ) === 0 ){
@@ -489,7 +492,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 			&& is_callable( $rg->disable_func )
 			&& call_user_func( $rg->disable_func, $post, $var->meta_key )
 		){
-			return null;
+			return '';
 		}
 
 		// meta_val
@@ -513,7 +516,7 @@ trait Kama_Post_Meta_Box__Fields_Part {
 		$rg->options = (array) $rg->options;
 
 		$var->pholder = $rg->placeholder ? ' placeholder="'. esc_attr( $rg->placeholder ) .'"' : '';
-		$var->class = $rg->class ? ' class="'. $rg->class .'"' : '';
+		$var->class = $rg->class ? ' class="'. esc_attr( $rg->class ) .'"' : '';
 
 		$this->_rg = $rg;
 		$this->_post = $post;
@@ -790,19 +793,43 @@ class Kama_Post_Meta_Box_Fields {
 		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
 
-	// radio
-	public function radio( $rg, $var, $post ){
+	/**
+	 * radio.
+	 *
+	 * Examples:
+	 *
+	 *     [ 'type'=>'radio', 'title'=>'Check me', 'desc'=>'mark it', 'options' => [ 'on' => 'Enabled', 'off' => 'Disabled' ] ]
+	 *
+	 * @param object  $rg
+	 * @param object  $var
+	 * @param WP_Post $post
+	 *
+	 * @return string
+	 */
+	public function radio( $rg, $var, $post ): string {
 
-		$radios = array();
+		$radios = [];
 
-		foreach( $rg->options as $v => $l ){
-			$radios[] = '
-			<label '. $rg->attr . $var->class .'>
-				<input type="radio" name="'. $var->name .'" value="'. $v .'" '. checked($var->val, $v, 0) .'>'. $l .'
-			</label> ';
+		$patt = '
+		<label {attrs}>
+			<input type="radio" id="{id}" name="{name}" value="{value}" {checked}>
+			{label}
+		</label>
+		';
+
+		foreach( $rg->options as $value => $label ){
+
+			$radios[] = strtr( $patt, [
+				'{attrs}'   => $rg->attr . $var->class,
+				'{name}'    => $var->name,
+				'{id}'      => $rg->id,
+				'{value}'   => esc_attr( $value ),
+				'{checked}' => checked( $var->val, $value, 0 ),
+				'{label}'   => $label,
+			] );
 		}
 
-		$field = '<span class="radios">'. implode("\n", $radios ) .'</span>';
+		$field = '<span class="radios">'. implode( "\n", $radios ) .'</span>';
 
 		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
 	}
@@ -813,6 +840,7 @@ class Kama_Post_Meta_Box_Fields {
 	 * Examples:
 	 *
 	 *     [ 'type'=>'checkbox', 'title'=>'Check me', 'desc'=>'mark it if you want to :)' ]
+	 *     [ 'type'=>'checkbox', 'title'=>'Check me', 'options' => [ 'default' => '0' ]  ]
 	 *
 	 * @param object  $rg
 	 * @param object  $var
@@ -824,7 +852,7 @@ class Kama_Post_Meta_Box_Fields {
 
 		$patt = '
 		<label {attrs}>
-			<input type="hidden" name="{name}" value="">
+			<input type="hidden" name="{name}" value="{default}">
 			<input type="checkbox" id="{id}" name="{name}" value="{value}" {checked}>
 			{desc}
 		</label>
@@ -833,12 +861,13 @@ class Kama_Post_Meta_Box_Fields {
 		$value = reset( $rg->options ) ?: 1;
 
 		$field = strtr( $patt, [
-			'{attrs}'     => $rg->attr . $var->class,
-			'{name}'      => $var->name,
-			'{id}'        => $rg->id,
-			'{value}'     => esc_attr( $value ),
-			'{checked}'   => checked( $var->val, $value, 0 ),
-			'{desc}'      => $rg->desc_before ?: '',
+			'{attrs}'   => $rg->attr . $var->class,
+			'{name}'    => $var->name,
+			'{default}' => $rg->params['default'] ?? '',
+			'{id}'      => $rg->id,
+			'{value}'   => esc_attr( $value ),
+			'{checked}' => checked( $var->val, $value, 0 ),
+			'{desc}'    => $rg->desc_before ?: '',
 		] );
 
 		return $var->title . $this->kpmb->tpl__field( $field );
