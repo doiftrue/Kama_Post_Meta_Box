@@ -1,3 +1,5 @@
+1.12.1  — 16.10.2022
+- Checkbox field default parameter added & minor fixes.
 
 1.12.0  — 15.06.2022
 - set_theme() moved to `current_screen` hook to have ability to use get_current_screen() function on `kp_metabox_theme` hook.
