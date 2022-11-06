@@ -18,15 +18,14 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * The block is rendered and the meta-fields are saved for users with edit current post capability only.
  *
- * PHP: 7+
+ * Requires PHP: 7.2
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.12.1
+ * @version 1.13
  */
 class Kama_Post_Meta_Box {
 
-	use Kama_Post_Meta_Box__Fields_Part;
 	use Kama_Post_Meta_Box__Themes;
 
 	public $opt;
@@ -35,12 +34,10 @@ class Kama_Post_Meta_Box {
 
 	static $instances = array();
 
-	/**
-	 * @var Kama_Post_Meta_Box_Fields
-	 */
-	protected $fields;
+	/** @var Kama_Post_Meta_Box_Fields */
+	protected $fields_class;
 
-	const METABOX_ARGS = [
+	protected const METABOX_ARGS = [
 		'id'                => '',
 		'title'             => '',
 		'desc'              => '',
@@ -60,34 +57,7 @@ class Kama_Post_Meta_Box {
 		],
 	];
 
-	const FIELD_ARGS =  [
-		'type'          => '',
-		'title'         => '',
-		'desc'          => '',
-		'desc_before'   => '',
-		'desc_after'    => '',
-		'placeholder'   => '',
-		'id'            => '',
-		'class'         => '',
-		'attr'          => '',
-		'val'           => '',
-		'options'       => '',
-		'params'        => [], // additional field options
-		'callback'      => '',
-		'sanitize_func' => '',
-		'output_func'   => '',
-		'update_func'   => '',
-		'disable_func'  => '',
-		'cap'           => '',
-
-		// служебные
-		'key'           => '', // Mandatory! Automatic
-		'title_patt'    => '', // Mandatory! Automatic
-		'field_patt'    => '', // Mandatory! Automatic
-	];
-
 	/**
-	 * Конструктор.
 	 *
 	 * @param array           $opt             {
 	 *     Опции по которым будет строиться метаблок.
@@ -181,11 +151,26 @@ class Kama_Post_Meta_Box {
 
 		$this->opt = (object) array_merge( self::METABOX_ARGS, $opt );
 
-		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', 'Kama_Post_Meta_Box_Fields' );
-		$this->fields = new $fields_class( $this );
+		$this->set_fields_class();
 
-		// хуки инициализации, вешается на хук init чтобы текущий пользователь уже был установлен
+		// Init hooks hangs on the `init` action, because we need current user to be installed
 		add_action( 'init', [ $this, 'init_hooks' ], 20 );
+	}
+
+	private function set_fields_class(): void {
+
+		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', '' );
+
+		if( $fields_class ){
+			$this->fields_class = new $fields_class();
+		}
+		else {
+			$this->fields_class = new Kama_Post_Meta_Box_Fields();
+		}
+	}
+
+	public function get_fields_class() {
+		return $this->fields_class;
 	}
 
 	public function init_hooks(): void {
@@ -195,7 +180,7 @@ class Kama_Post_Meta_Box {
 			return;
 		}
 
-		// design theme.
+		// theme design.
 		add_action( 'current_screen', [ $this, '_set_theme' ], 20 );
 
 		// create a unique object ID.
@@ -235,20 +220,11 @@ class Kama_Post_Meta_Box {
 
 		$p_types = $opt->post_type ?: $post_type;
 
-		// if WP < 4.4
-		if( is_array( $p_types ) && version_compare( $GLOBALS['wp_version'], '4.4', '<' ) ){
-			foreach( $p_types as $p_type ){
-				add_meta_box( $this->id, $opt->title, [ $this, 'meta_box', ], $p_type, $opt->context, $opt->priority );
-			}
-		}
-		else {
-
-			add_meta_box( $this->id, $opt->title, [ $this, 'meta_box' ], $p_types, $opt->context, $opt->priority );
-		}
+		add_meta_box( $this->id, $opt->title, [ $this, 'meta_box_html' ], $p_types, $opt->context, $opt->priority );
 
 		// добавим css класс к метабоксу
 		// apply_filters( "postbox_classes_{$page}_{$id}", $classes );
-		add_filter( "postbox_classes_{$post_type}_{$this->id}", [ $this, '_postbox_classes_add' ] );
+		add_filter( "postbox_classes_{$post_type}_{$this->id}", [ $this, 'add_metabox_css_classes' ] );
 	}
 
 	/**
@@ -256,33 +232,42 @@ class Kama_Post_Meta_Box {
 	 *
 	 * @param WP_Post $post Post object.
 	 */
-	public function meta_box( $post ): void {
+	public function meta_box_html( $post ): void {
 
-		$fields_out = $hidden_out = '';
+		$fields_out = '';
+		$hidden_out = '';
 
 		foreach( $this->opt->fields as $key => $args ){
 
-			// пустое поле
+			// empty field
 			if( ! $key || ! $args ){
 				continue;
 			}
 
-			empty( $args['title_patt'] ) && $args['title_patt'] = $this->opt->title_patt ?? '%s';
-			empty( $args['desc_before_patt'] ) && $args['desc_before_patt']  = $this->opt->desc_before_patt ?? '%s';
-			empty( $args['field_patt'] ) && $args['field_patt'] = $this->opt->field_patt ?? '%s';
+			empty( $args['title_patt'] )       && ( $args['title_patt'] = $this->opt->title_patt ?? '%s' );
+			empty( $args['desc_before_patt'] ) && ( $args['desc_before_patt']  = $this->opt->desc_before_patt ?? '%s' );
+			empty( $args['field_patt'] )       && ( $args['field_patt'] = $this->opt->field_patt ?? '%s' );
 
 			$args['key'] = $key;
+			$field_type = $args['type'] ?? '';
 
 			$field_wrap = & $this->opt->field_wrap;
-			if( 'wp_editor' === ( $args['type'] ?? '' ) ){
+			if( 'wp_editor' === $field_type ){
 				$field_wrap = str_replace( [ '<p ', '</p>' ], [ '<div ', '</div><br>' ], $field_wrap );
 			}
 
-			if( 'hidden' === ( $args['type'] ?? '' ) ){
-				$hidden_out .= $this->field( $args, $post );
+			$Field = new Kama_Post_Meta_Box__Field_Core( $this );
+			$this->fields_class->set_current_field_core( $Field );
+
+			if( 'hidden' === $field_type ){
+				$hidden_out .= $Field->field_html( $args, $post );
 			}
-			else{
-				$fields_out .= sprintf( $field_wrap, "{$key}_meta", $this->field( $args, $post ), ( $args['wrap_attr'] ?? '' ) );
+			else {
+				$fields_out .= sprintf( $field_wrap,
+					"{$key}_meta",
+					$Field->field_html( $args, $post ),
+					( $args['wrap_attr'] ?? '' )
+				);
 			}
 
 		}
@@ -296,11 +281,11 @@ class Kama_Post_Meta_Box {
 
 		$style = $this->opt->css ? "<style>{$this->opt->css}</style>" : '';
 
-		echo $style .
-		     $metabox_desc .
-		     $hidden_out .
-		     sprintf( ( $this->opt->fields_wrap ?: '%s' ), $fields_out ) .
-		     '<div class="clearfix"></div>';
+		echo $style;
+		echo $metabox_desc;
+		echo $hidden_out;
+		echo sprintf( ( $this->opt->fields_wrap ?: '%s' ), $fields_out );
+		echo '<div class="clearfix"></div>';
 	}
 
 	/**
@@ -327,10 +312,9 @@ class Kama_Post_Meta_Box {
 		}
 
 		// leave only the fields of the current class (protection against field swapping)
-		$_key_prefix = $this->_key_prefix();
-		$fields_data = array();
+		$fields_data = [];
 		foreach( $this->opt->fields as $_key => $rg ){
-			$meta_key = $_key_prefix . $_key;
+			$meta_key = $this->key_prefix() . $_key;
 
 			// not enough rights
 			if( ! empty( $rg['cap'] ) && ! current_user_can( $rg['cap'] ) ){
@@ -352,65 +336,7 @@ class Kama_Post_Meta_Box {
 		$save_metadata = array_intersect_key( $save_metadata, array_flip( $fields_names ) );
 
 		// Sanitizing
-		if( 'sanitize' ){
-
-			// Own sanitizing.
-			if( is_callable( $this->opt->save_sanitize ) ){
-				$save_metadata = call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
-				$sanitized = true;
-			}
-
-			// Sanitizing hook.
-			if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
-				$save_metadata = apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
-				$sanitized = true;
-			}
-
-			// If there is no sanitizing function or hook, then clean all fields with wp_kses() or sanitize_text_field().
-			if( empty( $sanitized ) ){
-
-				foreach( $save_metadata as $meta_key => & $value ){
-
-					// there is a function for cleaning a separate field
-					if(
-						! empty( $fields_data[ $meta_key ]['sanitize_func'] )
-						&&
-						is_callable( $fields_data[ $meta_key ]['sanitize_func'] )
-					){
-						$value = call_user_func( $fields_data[ $meta_key ]['sanitize_func'], $value );
-					}
-					// do not clean
-					elseif( 'none' === ( $fields_data[$meta_key]['sanitize_func'] ?? '' ) ){
-						// skip
-					}
-					// do not clean - apparently it is an arbitrary field output function that saves an array
-					elseif( is_array( $value ) ){
-						// skip
-					}
-					// there is no function for cleaning an individual field
-					else {
-
-						$type = !empty($fields_data[$meta_key]['type']) ? $fields_data[$meta_key]['type'] : 'text';
-
-						if( $type === 'number' ){
-							$value = (float) $value;
-						}
-						elseif( $type === 'email' ){
-							$value = sanitize_email( $value );
-						}
-						// wp_editor, textarea
-						elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
-							$value = addslashes( wp_kses( stripslashes( $value ), 'post' ) ); // default ?
-						}
-						// text, radio, checkbox, color, date, month, tel, time, url
-						else{
-							$value = sanitize_text_field( $value );
-						}
-					}
-				}
-				unset( $value );
-			}
-		}
+		$save_metadata = $this->save_sanitize( $save_metadata, $post_id, $fields_data );
 
 		// Save
 		foreach( $save_metadata as $meta_key => $value ){
@@ -432,78 +358,233 @@ class Kama_Post_Meta_Box {
 		}
 	}
 
-	public function _postbox_classes_add( $classes ){
+	/**
+	 * Sanitize field value on save.
+	 */
+	protected function save_sanitize( $save_metadata, $post_id, $fields_data ){
+
+		// Own sanitizing.
+		if( is_callable( $this->opt->save_sanitize ) ){
+			return call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
+		}
+
+		// Sanitizing hook.
+		if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
+			return apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
+		}
+
+		// default sanitization with wp_kses() or sanitize_text_field().
+
+		foreach( $save_metadata as $meta_key => & $value ){
+
+			// there is a function for cleaning a separate field
+			if(
+				! empty( $fields_data[ $meta_key ]['sanitize_func'] )
+				&&
+				is_callable( $fields_data[ $meta_key ]['sanitize_func'] )
+			){
+				$value = call_user_func( $fields_data[ $meta_key ]['sanitize_func'], $value );
+			}
+			// do not clean
+			elseif( 'none' === ( $fields_data[$meta_key]['sanitize_func'] ?? '' ) ){
+				// skip
+			}
+			// do not clean - apparently it is an arbitrary field output function that saves an array
+			elseif( is_array( $value ) ){
+				// skip
+			}
+			// there is no function for cleaning an individual field
+			else {
+
+				$type = ! empty( $fields_data[ $meta_key ]['type'] ) ? $fields_data[ $meta_key ]['type'] : 'text';
+
+				if( $type === 'number' ){
+					$value = (float) $value;
+				}
+				elseif( $type === 'email' ){
+					$value = sanitize_email( $value );
+				}
+				// wp_editor, textarea
+				elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
+					$value = addslashes( wp_kses( stripslashes( $value ), 'post' ) ); // default ?
+				}
+				// text, radio, checkbox, color, date, month, tel, time, url
+				else{
+					$value = sanitize_text_field( $value );
+				}
+			}
+		}
+		unset( $value );
+
+		return $save_metadata;
+	}
+
+	public function add_metabox_css_classes( $classes ){
+
 		$classes[] = "kama_meta_box_{$this->opt->id}";
+
 		return $classes;
 	}
 
-	public function _key_prefix(){
+	public function key_prefix(): string {
 		return ( '_' === $this->opt->id[0] ) ? '' : "{$this->opt->id}_";
 	}
 
 }
 
-trait Kama_Post_Meta_Box__Fields_Part {
+/**
+ * Prepare single field for render.
+ */
+class Kama_Post_Meta_Box__Field_Core {
 
-	protected $_rg;
-	protected $_post;
-	protected $_var;
+	protected const FIELD_ARGS =  [
+		'type'          => '',
+		'title'         => '',
+		'desc'          => '',
+		'desc_before'   => '',
+		'desc_after'    => '',
+		'placeholder'   => '',
+		'id'            => '',
+		'class'         => '',
+		'attr'          => '',
+		'val'           => '',
+		'options'       => '',
+		'params'        => [], // additional field options
+		'callback'      => '',
+		'sanitize_func' => '',
+		'output_func'   => '',
+		'update_func'   => '',
+		'disable_func'  => '',
+		'cap'           => '',
+
+		// служебные
+		'key'           => '', // Mandatory! Automatic
+		'title_patt'    => '', // Mandatory! Automatic
+		'field_patt'    => '', // Mandatory! Automatic
+	];
+
+	protected $rg;
+	protected $post;
+	protected $var;
+
+	/** @var Kama_Post_Meta_Box */
+	protected $kpmb;
+
+
+	public function __construct( Kama_Post_Meta_Box $kpmb ){
+		$this->kpmb = $kpmb;
+	}
 
 	/**
 	 * Outputs individual meta field.
 	 *
-	 * @param string  $name  The name attribute.
 	 * @param array   $args  Field parameters.
 	 * @param WP_Post $post  The object of the current post.
 	 *
-	 * @return string|null HTML code
+	 * @return string|null HTML code.
 	 */
-	protected function field( array $args, $post ): string {
+	public function field_html( array $args, $post ): string {
 
-		// internal variables of this function, will be transferred to the methods
-		$var = (object) [];
+		$this->post = $post;
+
+		$this->rg = $this->parse_args( $args );
+
+		// no acces to the field
+		if( ! $this->rg ){
+			return '';
+		}
+
+		$this->var = $this->create_field_vars();
+
+		$this->standartize_rg_desc(); // !!! after var set
+
+		return $this->field_output( $args );
+	}
+
+	public function tpl__field( string $field ): string {
+
+		return sprintf( $this->rg->field_patt, $field );
+	}
+
+	public function field_desc_concat( string $field ): string{
+
+		$rg = $this->rg;
+		$opt = $this->kpmb->opt;
+
+		// description before field
+		if( $rg->desc_before ){
+			$desc = sprintf( $opt->desc_before_patt, $rg->desc_before );
+
+			return $desc . $field;
+		}
+
+		// descroption after field
+		if( $rg->desc_after ){
+			$desc = sprintf( $opt->desc_after_patt, $rg->desc_after );
+
+			return $field . $desc;
+		}
+
+		return $field;
+	}
+
+
+	/**
+	 * Parse fields arguments.
+	 *
+	 * @return object|null Null if user can access to see meta-field
+	 */
+	private function parse_args( $args ): ?object {
 
 		$rg = (object) array_merge( self::FIELD_ARGS, $args );
 
 		if( $rg->cap && ! current_user_can( $rg->cap ) ){
-			return '';
+			return null;
 		}
 
-		if( strpos( $rg->key, 'sep_' ) === 0 ){
-			$rg->type = 'sep';
-		}
-		if( ! $rg->type ){
-			$rg->type = 'text';
-		}
-
-		// standartize desc
-		if( $rg->desc ){
-			$rg->desc_before = $rg->desc;
-		}
-		if( ! $rg->desc && ! $rg->desc_before && $rg->desc_after ){
-			$rg->desc = $rg->desc_after;
-		}
-
-		$var->meta_key = $this->_key_prefix() . $rg->key;
+		$rg->meta_key = $this->kpmb->key_prefix() . $rg->key;
 
 		// the field is disabled
 		if(
 			$rg->disable_func
 			&& is_callable( $rg->disable_func )
-			&& call_user_func( $rg->disable_func, $post, $var->meta_key )
+			&& call_user_func( $rg->disable_func, $this->post, $rg->meta_key )
 		){
-			return '';
+			return null;
 		}
 
-		// meta_val
+		// fix some fields $rg
+
+		$rg->id = $rg->id ?: "{$this->kpmb->opt->id}_{$rg->key}";
+		$rg->options = (array) $rg->options;
+
+		if( 0 === strpos( $rg->key, 'sep_' ) ){
+			$rg->type = 'sep';
+		}
+
+		if( ! $rg->type ){
+			$rg->type = 'text';
+		}
+
+		return $rg;
+	}
+
+	private function create_field_vars(): object {
+
+		$post = $this->post;
+		$rg = $this->rg;
+
+		// internal variables of this function, will be transferred to the methods
+		$var = new \stdClass();
+
+		$var->meta_key = $rg->meta_key;
+
 		$var->val = get_post_meta( $post->ID, $var->meta_key, true ) ?: $rg->val;
 		if( $rg->output_func && is_callable( $rg->output_func ) ){
 			$var->val = call_user_func( $rg->output_func, $post, $var->meta_key, $var->val );
 		}
 
-		$var->name = "{$this->id}_meta[$var->meta_key]";
-
-		$rg->id = $rg->id ?: "{$this->opt->id}_{$rg->key}";
+		$var->name = "{$this->kpmb->id}_meta[$var->meta_key]";
 
 		// with a table theme, the td header should always be output!
 		if( false !== strpos( $rg->title_patt, '<td ' ) ){
@@ -513,174 +594,62 @@ trait Kama_Post_Meta_Box__Fields_Part {
 			$var->title = $rg->title ? sprintf( $rg->title_patt, $rg->title ) . ' ' : '';
 		}
 
-		$rg->options = (array) $rg->options;
-
 		$var->pholder = $rg->placeholder ? ' placeholder="'. esc_attr( $rg->placeholder ) .'"' : '';
 		$var->class = $rg->class ? ' class="'. esc_attr( $rg->class ) .'"' : '';
 
-		$this->_rg = $rg;
-		$this->_post = $post;
-		$this->_var = $var;
+		return $var;
+	}
 
-		// arbitrary function
+	private function field_output( $args ): string {
+
+		$rg = & $this->rg;
+		$post = & $this->post;
+		$var = & $this->var;
+
+		// custom function
 		if( is_callable( $rg->callback ) ){
-			$out = $var->title . $this->tpl__field(
-					call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
-				);
+			$out = $var->title;
+			$out .= $this->tpl__field(
+				call_user_func( $rg->callback, $args, $post, $var->name, $var->val, $rg, $var )
+			);
 		}
-		// arbitrary method
+		// custom method
 		// Call the method `$this->field__{FIELD}()` (to be able to extend this class)
-		elseif( method_exists( $this->fields, $rg->type ) ){
-			$out = $this->fields->{ $rg->type }( $rg, $var, $post, $args );
+		elseif( method_exists( $this->kpmb->get_fields_class(), $rg->type ) ){
+			$out = $this->kpmb->get_fields_class()->{ $rg->type }( $rg, $var, $post, $args );
 		}
 		// text, email, number, url, tel, color, password, date, month, week, range
 		else{
-			$out = $this->fields->default( $rg, $var, $post );
+			$out = $this->kpmb->get_fields_class()->default( $rg, $var, $post );
 		}
 
 		return $out;
 	}
 
-	public function tpl__field( $field ){
-		$rg = $this->_rg;
+	private function standartize_rg_desc(): void {
 
-		return sprintf( $rg->field_patt, $field );
-	}
+		$rg = & $this->rg;
 
-	public function field_desc_concat( $field ){
-
-		[ $rg, $var, $post, $opt ] = [ $this->_rg, $this->_var, $this->_post, $this->opt ];
-
-		$desc_fn = static function( $desc ) use( $var, $post ){
-
-			return is_callable( $desc )
-				? $desc( $post, $var->meta_key, $var->val, $var->name )
-				: $desc;
-		};
-
-		// description before field
-		if( $rg->desc_before ){
-			$desc = sprintf( $opt->desc_before_patt, $desc_fn( $rg->desc_before ) );
-
-			return $desc . $field;
+		if( $rg->desc ){
+			$rg->desc_before = $rg->desc;
 		}
 
-		// descroption after field
-		if( $rg->desc_after ){
-			$desc = sprintf( $opt->desc_after_patt, $desc_fn( $rg->desc_after ) );
-
-			return $field . $desc;
+		if( ! $rg->desc && ! $rg->desc_before && $rg->desc_after ){
+			$rg->desc = $rg->desc_after;
 		}
 
-		return $field;
-	}
-}
+		foreach( [ & $rg->desc, & $rg->desc_before, & $rg->desc_after ] as & $desc ){
 
-trait Kama_Post_Meta_Box__Themes {
-
-	public function _set_theme(): void {
-		$cs = get_current_screen();
-
-		$opt_theme = & $this->opt->theme;
-
-		$def_opt_theme = [
-			'line' => [
-				// CSS styles of the whole block. For example: '.postbox .tit{ font-weight:bold; }'
-				'css'         => '
-					.kpmb{ display: flex; flex-wrap: wrap; justify-content: space-between; }
-					.kpmb > * { width:100%; }
-				    .kpmb__field{ box-sizing:border-box; margin-bottom:1em; }
-				    .kpmb__tit{ display: block; margin:1em 0 .5em; font-size:115%; }
-				    .kpmb__desc{ opacity:0.6; }
-				    .kpmb__desc.--after{ margin-top:.5em; }
-				    .kpmb__sep{ display:block; padding:1em; font-size:110%; font-weight:600; }
-				    .kpmb__sep.--hr{ padding: 0; height: 1px; background: #eee; margin: 1em -12px 0 -12px; }
-			    ',
-				// '%s' will be replaced by the html of all fields
-				'fields_wrap' => '<div class="kpmb">%s</div>',
-				// '%2$s' will be replaced by field HTML (along with title, field and description)
-				'field_wrap'  => '<div class="kpmb__field %1$s" %3$s>%2$s</div>',
-				// '%s' will be replaced by the header
-				'title_patt'  => '<strong class="kpmb__tit"><label>%s</label></strong>',
-				// '%s' will be replaced by field HTML (along with description)
-				'field_patt'  => '%s',
-				// '%s' will be replaced by the description text
-				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
-				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
-			],
-			'table' => [
-				'css'         => '
-					.kpmb-table td{ padding:.6em .5em; }
-					.kpmb-table tr:hover{ background:rgba(0,0,0,.03); }
-					.kpmb__sep{ padding:1em .5em; font-weight:600; }
-					.kpmb__desc{ opacity:0.8; }
-				',
-				'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
-				'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
-				'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
-				'field_patt'  => '<td class="field">%s</td>',
-				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
-				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
-			],
-			'grid' => [
-				'css'         => '
-					.kpmb-grid{ margin: '.( $cs->is_block_editor ? '-6px -24px -24px' : '-6px -12px -12px' ).' }
-					.kpmb-grid__item{ display:grid; grid-template-columns:15em 2fr; grid-template-rows:1fr; border-bottom:1px solid rgba(0,0,0,.1) }
-					.kpmb-grid__item:last-child{ border-bottom:none }
-					.kpmb-grid__title{ padding:1.5em; background:#F9F9F9; border-right:1px solid rgba(0,0,0,.1); font-weight:600 }
-					.kpmb-grid__field{ align-self:center; padding:1em 1.5em }
-					.kpmb__sep{ grid-column: 1 / span 2; display:block; padding:1em; font-size:110%; font-weight:600; }
-					.kpmb__desc{ opacity:0.8; }
-				',
-				'fields_wrap' => '<div class="kpmb-grid">%s</div>',
-				'field_wrap'  => '<div class="kpmb-grid__item %1$s">%2$s</div>',
-				'title_patt'  => '<div class="kpmb-grid__title">%s</div>',
-				'field_patt'  => '<div class="kpmb-grid__field">%s</div>',
-				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
-				'desc_after_patt'  => '<br><p class="description kpmb__desc --after">%s</p>',
-			],
-		];
-
-		if( is_string( $opt_theme ) ){
-			$def_opt_theme = $def_opt_theme[ $opt_theme ];
-		}
-		// allows you to change individual fields of the metabox theme
-		else {
-			$opt_theme_key = key( $opt_theme ); // индекс массива
-
-			// в индексе указана тема: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
-			if( isset( $def_opt_theme[ $opt_theme_key ] ) ){
-				$def_opt_theme = $def_opt_theme[ $opt_theme_key ]; // основа
-				$opt_theme     = $opt_theme[ $opt_theme_key ];
-			}
-			// в индексе указана не тема: [ 'desc_before_patt' => '<div>%s</div>' ]
-			else {
-				$def_opt_theme = $def_opt_theme['line']; // основа
+			if( is_callable( $desc ) ){
+				$desc = $desc( $this->post, $this->var->meta_key, $this->var->val, $this->var->name );
 			}
 		}
-
-		$opt_theme = is_array( $opt_theme ) ? array_merge( $def_opt_theme, $opt_theme ) : $def_opt_theme;
-
-		// allows you to change the theme
-		$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
-
-		// Theme variables to global parameters.
-		// If there is already a variable in the parameters, it stays as is
-		// (this allows to change an individual theme element).
-		foreach( $opt_theme as $kk => $vv ){
-			if( ! isset( $this->opt->$kk ) ){
-				$this->opt->$kk = $vv;
-			}
-		}
-
 	}
+
 }
 
 /**
  * Separate class which contains fields.
- *
- * @method field_desc_concat( $field ) See: Kama_Post_Meta_Box__Fields_Part::field_desc_concat()
- * @method tpl__field( $field )        See: Kama_Post_Meta_Box__Fields_Part::tpl__field()
  *
  * You can add your own fields by extend this class like so:
  *
@@ -726,41 +695,81 @@ trait Kama_Post_Meta_Box__Themes {
  */
 class Kama_Post_Meta_Box_Fields {
 
-	/** @var Kama_Post_Meta_Box  */
-	protected $kpmb;
+	/**
+	 * Changable property. Contains class instance of single field (data) that processing now.
+	 *
+	 * @var Kama_Post_Meta_Box__Field_Core
+	 */
+	protected $the_field;
 
-	public function __construct( Kama_Post_Meta_Box $kpmb ){
-		$this->kpmb = $kpmb;
+
+	public function __construct(){
 	}
 
-	public function __call( $name, $params ){
-
-		if( method_exists( $this->kpmb, $name ) ){
-			return $this->kpmb->$name( ...$params );
-		}
-
-		return null;
+	public function set_current_field_core( Kama_Post_Meta_Box__Field_Core $class ): void {
+		$this->the_field = $class;
 	}
 
-	// sep
-	public function sep( $rg, $var, $post ){
+	protected function tpl__field( string $field ): string {
+		return $this->the_field->tpl__field( $field );
+	}
+
+	protected function field_desc_concat( string $field ): string {
+		return $this->the_field->field_desc_concat( $field );
+	}
+
+	/**
+	 * Sep field.
+	 *
+	 * Example:
+	 *
+	 *     'sep_1' => [
+	 *         'title' => 'SEO headers',
+	 *         'desc'  => fn( $post ) => 'Placeholders: ' .  placeholders(),
+	 *     ],
+	 *
+	 * @param object  $rg
+	 * @param object  $var
+	 * @param WP_Post $post
+	 *
+	 * @return array|string|string[]
+	 */
+	public function sep( object $rg, object $var, $post ){
 
 		$class = [ 'kpmb__sep' ];
 		! $rg->title && $class[] = '--hr';
 		$class = implode( ' ', $class );
 
+		// table theme
+
 		if( false !== strpos( $rg->field_patt, '<td' ) ){
-			return str_replace( '<td ',
+
+			$field = $rg->title;
+
+			if( $rg->desc ){
+				$field .= sprintf( '<div class="kpmb__sep-desc">%s</div>', $rg->desc );
+			}
+
+			return str_replace(
+				'<td ',
 				sprintf( '<td class="%s" colspan="2" %s', $class, $rg->attr ),
-				$this->kpmb->tpl__field( $rg->title )
+				$this->tpl__field( $field )
 			);
 		}
 
-		return sprintf( '<span class="%s" %s>%s</span>', $class, $rg->attr, $rg->title );
+		// other theme
+
+		$sep = sprintf( '<span class="%s" %s>%s</span>', $class, $rg->attr, $rg->title );
+
+		if( $rg->desc ){
+			$sep .= sprintf( '<span class="kpmb__sep-desc">%s</span>', $rg->desc );
+		}
+
+		return $sep;
 	}
 
 	// textarea
-	public function textarea( $rg, $var, $post ){
+	public function textarea( object $rg, object $var, WP_Post $post ): string {
 		$_style = ( false === strpos( $rg->attr, 'style=' ) ) ? ' style="width:98%;"' : '';
 
 		$field = sprintf( '<textarea %s id="%s" name="%s">%s</textarea>',
@@ -770,11 +779,13 @@ class Kama_Post_Meta_Box_Fields {
 			esc_textarea( $var->val )
 		);
 
-		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	// select
-	public function select( $rg, $var, $post ){
+	public function select( object $rg, object $var, WP_Post $post ): string {
 
 		$is_assoc = ( array_keys($rg->options) !== range(0, count($rg->options) - 1) ); // associative or not?
 		$_options = array();
@@ -790,7 +801,9 @@ class Kama_Post_Meta_Box_Fields {
 			implode("\n", $_options )
 		);
 
-		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	/**
@@ -798,7 +811,12 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * Examples:
 	 *
-	 *     [ 'type'=>'radio', 'title'=>'Check me', 'desc'=>'mark it', 'options' => [ 'on' => 'Enabled', 'off' => 'Disabled' ] ]
+	 *     'meta_name' => [
+	 *         'type'    => 'radio',
+	 *         'title'   => 'Check me',
+	 *         'desc'    => 'mark it',
+	 *         'options' => [ 'on' => 'Enabled', 'off' => 'Disabled' ],
+	 *     ]
 	 *
 	 * @param object  $rg
 	 * @param object  $var
@@ -806,7 +824,7 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * @return string
 	 */
-	public function radio( $rg, $var, $post ): string {
+	public function radio( object $rg, object $var, WP_Post $post ): string {
 
 		$radios = [];
 
@@ -831,7 +849,9 @@ class Kama_Post_Meta_Box_Fields {
 
 		$field = '<span class="radios">'. implode( "\n", $radios ) .'</span>';
 
-		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	/**
@@ -839,8 +859,10 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * Examples:
 	 *
-	 *     [ 'type'=>'checkbox', 'title'=>'Check me', 'desc'=>'mark it if you want to :)' ]
-	 *     [ 'type'=>'checkbox', 'title'=>'Check me', 'options' => [ 'default' => '0' ]  ]
+	 *     ```
+	 *     'meta_name' => [ 'type'=>'checkbox', 'title'=>'Check me', 'desc'=>'mark it if you want to :)' ]
+	 *     'meta_name' => [ 'type'=>'checkbox', 'title'=>'Check me', 'options' => [ 'default' => '0' ]  ]
+	 *     ```
 	 *
 	 * @param object  $rg
 	 * @param object  $var
@@ -848,7 +870,7 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * @return string
 	 */
-	public function checkbox( $rg, $var, $post ){
+	public function checkbox( object $rg, object $var, WP_Post $post ): string {
 
 		$patt = '
 		<label {attrs}>
@@ -870,7 +892,7 @@ class Kama_Post_Meta_Box_Fields {
 			'{desc}'    => $rg->desc_before ?: '',
 		] );
 
-		return $var->title . $this->kpmb->tpl__field( $field );
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	/**
@@ -893,7 +915,7 @@ class Kama_Post_Meta_Box_Fields {
 	 *
 	 * @return string
 	 */
-	public function checkbox_multi( $rg, $var, $post ){
+	public function checkbox_multi( object $rg, object $var, WP_Post $post ): string {
 
 		$checkboxes = [];
 
@@ -942,11 +964,11 @@ class Kama_Post_Meta_Box_Fields {
 			<div class="fieldset">'. $common_hidden . implode( "$sep\n", $checkboxes ) .'</div>
 		</fieldset>';
 
-		return $var->title . $this->kpmb->tpl__field( $field );
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	// hidden
-	public function hidden( $rg, $var, $post ){
+	public function hidden( object $rg, object $var, WP_Post $post ): string {
 
 		return sprintf( '<input type="%s" id="%s" name="%s" value="%s" title="%s">',
 			$rg->type,
@@ -958,7 +980,7 @@ class Kama_Post_Meta_Box_Fields {
 	}
 
 	// wp_editor
-	public function wp_editor( $rg, $var, $post ){
+	public function wp_editor( object $rg, object $var, WP_Post $post ): string {
 
 		$ed_args = array_merge( [
 			'textarea_name'    => $var->name, // must be specified!
@@ -980,11 +1002,13 @@ class Kama_Post_Meta_Box_Fields {
 		wp_editor( $var->val, $rg->id, $ed_args );
 		$field = ob_get_clean();
 
-		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	// image
-	public function image( $rg, $var, $post ){
+	public function image( object $rg, object $var, WP_Post $post ): string {
 
 		wp_enqueue_media();
 
@@ -1071,11 +1095,11 @@ class Kama_Post_Meta_Box_Fields {
 		<?php
 		$field = ob_get_clean();
 
-		return $var->title . $this->kpmb->tpl__field( $field );
+		return $var->title . $this->tpl__field( $field );
 	}
 
 	// text, email, number, url, tel, color, password, date, month, week, range
-	public function default( $rg, $var, $post ){
+	public function default( object $rg, object $var, WP_Post $post ): string {
 
 		$_style = ( $rg->type === 'text' && false === strpos( $rg->attr, 'style=' ) )
 			? ' style="width:100%;"'
@@ -1090,10 +1114,118 @@ class Kama_Post_Meta_Box_Fields {
 			esc_attr( $rg->title )
 		);
 
-		return $var->title . $this->kpmb->tpl__field( $this->kpmb->field_desc_concat( $field ) );
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
 	}
 
 }
 
+trait Kama_Post_Meta_Box__Themes {
+
+	private function themes_settings(): array {
+
+		return [
+			'line' => [
+				// CSS styles of the whole block. For example: '.postbox .tit{ font-weight:bold; }'
+				'css'         => '
+					.kpmb{ display: flex; flex-wrap: wrap; justify-content: space-between; }
+					.kpmb > * { width:100%; }
+					.kpmb__field{ box-sizing:border-box; margin-bottom:1em; }
+					.kpmb__tit{ display: block; margin:1em 0 .5em; font-size:115%; }
+					.kpmb__desc{ opacity:0.6; }
+					.kpmb__desc.--after{ margin-top:.5em; }
+					.kpmb__sep{ display: block; padding: 2em 1em 0.2em 0; font-size: 130%; font-weight: 600; }
+					.kpmb__sep.--hr{ padding: 0; height: 1px; background: #eee; margin: 1em -12px 0 -12px; }
+			    ',
+				// '%s' will be replaced by the html of all fields
+				'fields_wrap' => '<div class="kpmb">%s</div>',
+				// '%2$s' will be replaced by field HTML (along with title, field and description)
+				'field_wrap'  => '<div class="kpmb__field %1$s" %3$s>%2$s</div>',
+				// '%s' will be replaced by the header
+				'title_patt'  => '<strong class="kpmb__tit"><label>%s</label></strong>',
+				// '%s' will be replaced by field HTML (along with description)
+				'field_patt'  => '%s',
+				// '%s' will be replaced by the description text
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
+			],
+			'table' => [
+				'css'         => '
+					.kpmb-table td{ padding: .6em .5em; }
+					.kpmb-table tr:hover{ background: rgba(0,0,0,.03); }
+					.kpmb__sep{ padding: 1em .5em; font-weight: 600; }
+					.kpmb__sep-desc{ padding-top: .3em; font-weight: normal; opacity: .6; }
+					.kpmb__desc{ opacity: 0.8; }
+				',
+				'fields_wrap' => '<table class="form-table kpmb-table">%s</table>',
+				'field_wrap'  => '<tr class="%1$s">%2$s</tr>',
+				'title_patt'  => '<td style="width:10em;" class="tit">%s</td>',
+				'field_patt'  => '<td class="field">%s</td>',
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
+			],
+			'grid' => [
+				'css'         => '
+					.kpmb-grid{ margin: '. ( get_current_screen()->is_block_editor ? '-6px -24px -24px' : '-6px -12px -12px' ) .' }
+					.kpmb-grid__item{ display:grid; grid-template-columns:15em 2fr; grid-template-rows:1fr; border-bottom:1px solid rgba(0,0,0,.1) }
+					.kpmb-grid__item:last-child{ border-bottom:none }
+					.kpmb-grid__title{ padding:1.5em; background:#F9F9F9; border-right:1px solid rgba(0,0,0,.1); font-weight:600 }
+					.kpmb-grid__field{ align-self:center; padding:1em 1.5em }
+					.kpmb__sep{ grid-column: 1 / span 2; display:block; padding:1em; font-size:110%; font-weight:600; }
+					.kpmb__sep-desc{ grid-column: 1 / span 2; display: block; padding: 0 1em 1em 1em; opacity: .7; }
+					.kpmb__desc{ opacity:0.8; }
+				',
+				'fields_wrap' => '<div class="kpmb-grid">%s</div>',
+				'field_wrap'  => '<div class="kpmb-grid__item %1$s">%2$s</div>',
+				'title_patt'  => '<div class="kpmb-grid__title">%s</div>',
+				'field_patt'  => '<div class="kpmb-grid__field">%s</div>',
+				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
+				'desc_after_patt'  => '<br><p class="description kpmb__desc --after">%s</p>',
+			],
+		];
+
+	}
+
+	public function _set_theme(): void {
+
+		$themes_settings = $this->themes_settings();
+
+		$opt_theme = & $this->opt->theme;
+
+		if( is_string( $opt_theme ) ){
+			$themes_settings = $themes_settings[ $opt_theme ];
+		}
+		// allows you to change individual option (field) of the theme option.
+		else {
+			$opt_theme_key = key( $opt_theme );
+
+			// theme is in the index: [ 'table' => [ 'desc_before_patt' => '<div>%s</div>' ] ]
+			if( isset( $themes_settings[ $opt_theme_key ] ) ){
+				$themes_settings = $themes_settings[ $opt_theme_key ]; // base
+				$opt_theme     = $opt_theme[ $opt_theme_key ];
+			}
+			// not theme in the index: [ 'desc_before_patt' => '<div>%s</div>' ]
+			else {
+				$themes_settings = $themes_settings['line']; // base
+			}
+		}
+
+		$opt_theme = is_array( $opt_theme ) ? array_merge( $themes_settings, $opt_theme ) : $themes_settings;
+
+		// allows you to change the theme
+		$opt_theme = apply_filters( 'kp_metabox_theme', $opt_theme, $this->opt );
+
+		// Theme variables to global parameters.
+		// If there is already a variable in the parameters, it stays as is
+		// (this allows to change an individual theme element).
+		foreach( $opt_theme as $kk => $vv ){
+			if( ! isset( $this->opt->$kk ) ){
+				$this->opt->$kk = $vv;
+			}
+		}
+
+	}
+}
 
 
