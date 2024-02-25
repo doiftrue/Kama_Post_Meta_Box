@@ -22,16 +22,20 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.13
+ * @version 1.16
  */
 class Kama_Post_Meta_Box {
 
 	use Kama_Post_Meta_Box__Themes;
+	use Kama_Post_Meta_Box__Sanitizer;
 
+	/** @var object */
 	public $opt;
 
+	/** @var string */
 	public $id;
 
+	/** @var array */
 	static $instances = array();
 
 	/** @var Kama_Post_Meta_Box_Fields */
@@ -169,7 +173,7 @@ class Kama_Post_Meta_Box {
 		}
 	}
 
-	public function get_fields_class() {
+	public function get_fields_class(): Kama_Post_Meta_Box_Fields {
 		return $this->fields_class;
 	}
 
@@ -196,6 +200,8 @@ class Kama_Post_Meta_Box {
 
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ], 10, 2 );
 		add_action( 'save_post', [ $this, 'meta_box_save' ], 1, 2 );
+
+		$this->set_value_sanitize_wp_hook();
 	}
 
 	public function add_meta_box( $post_type, $post ): void {
@@ -237,6 +243,7 @@ class Kama_Post_Meta_Box {
 		$fields_out = '';
 		$hidden_out = '';
 
+		/** @var array $args For phpstan */
 		foreach( $this->opt->fields as $key => $args ){
 
 			// empty field
@@ -291,10 +298,10 @@ class Kama_Post_Meta_Box {
 	/**
 	 * Saving data, when saving a post.
 	 *
-	 * @param int     $post_id Record ID.
-	 * @param WP_Post $post
+	 * @param int      $post_id Record ID.
+	 * @param \WP_Post $post
 	 *
-	 * @return void|null False If the check is not passed.
+	 * @return void False If the check is not passed.
 	 */
 	public function meta_box_save( $post_id, $post ): void {
 
@@ -336,7 +343,7 @@ class Kama_Post_Meta_Box {
 		$save_metadata = array_intersect_key( $save_metadata, array_flip( $fields_names ) );
 
 		// Sanitizing
-		$save_metadata = $this->save_sanitize( $save_metadata, $post_id, $fields_data );
+		$save_metadata = $this->maybe_run_custom_sanitize( $save_metadata, $post_id, $fields_data );
 
 		// Save
 		foreach( $save_metadata as $meta_key => $value ){
@@ -356,67 +363,6 @@ class Kama_Post_Meta_Box {
 				update_post_meta( $post_id, $meta_key, $value );
 			}
 		}
-	}
-
-	/**
-	 * Sanitize field value on save.
-	 */
-	protected function save_sanitize( $save_metadata, $post_id, $fields_data ){
-
-		// Own sanitizing.
-		if( is_callable( $this->opt->save_sanitize ) ){
-			return call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
-		}
-
-		// Sanitizing hook.
-		if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
-			return apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
-		}
-
-		// default sanitization with wp_kses() or sanitize_text_field().
-
-		foreach( $save_metadata as $meta_key => & $value ){
-
-			// there is a function for cleaning a separate field
-			if(
-				! empty( $fields_data[ $meta_key ]['sanitize_func'] )
-				&&
-				is_callable( $fields_data[ $meta_key ]['sanitize_func'] )
-			){
-				$value = call_user_func( $fields_data[ $meta_key ]['sanitize_func'], $value );
-			}
-			// do not clean
-			elseif( 'none' === ( $fields_data[$meta_key]['sanitize_func'] ?? '' ) ){
-				// skip
-			}
-			// do not clean - apparently it is an arbitrary field output function that saves an array
-			elseif( is_array( $value ) ){
-				// skip
-			}
-			// there is no function for cleaning an individual field
-			else {
-
-				$type = ! empty( $fields_data[ $meta_key ]['type'] ) ? $fields_data[ $meta_key ]['type'] : 'text';
-
-				if( $type === 'number' ){
-					$value = (float) $value;
-				}
-				elseif( $type === 'email' ){
-					$value = sanitize_email( $value );
-				}
-				// wp_editor, textarea
-				elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
-					$value = addslashes( wp_kses( stripslashes( $value ), 'post' ) ); // default ?
-				}
-				// text, radio, checkbox, color, date, month, tel, time, url
-				else{
-					$value = sanitize_text_field( $value );
-				}
-			}
-		}
-		unset( $value );
-
-		return $save_metadata;
 	}
 
 	public function add_metabox_css_classes( $classes ){
@@ -481,7 +427,7 @@ class Kama_Post_Meta_Box__Field_Core {
 	 * @param array   $args  Field parameters.
 	 * @param WP_Post $post  The object of the current post.
 	 *
-	 * @return string|null HTML code.
+	 * @return string HTML code.
 	 */
 	public function field_html( array $args, $post ): string {
 
@@ -702,7 +648,6 @@ class Kama_Post_Meta_Box_Fields {
 	 */
 	protected $the_field;
 
-
 	public function __construct(){
 	}
 
@@ -791,7 +736,7 @@ class Kama_Post_Meta_Box_Fields {
 		$_options = array();
 		foreach( $rg->options as $v => $l ){
 			$_val       = $is_assoc ? $v : $l;
-			$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($var->val, $_val, 0) .'>'. $l .'</option>';
+			$_options[] = '<option value="'. esc_attr($_val) .'" '. selected($var->val, $_val, false) .'>'. $l .'</option>';
 		}
 
 		$field = sprintf( '<select %s id="%s" name="%s">%s</select>',
@@ -842,7 +787,7 @@ class Kama_Post_Meta_Box_Fields {
 				'{name}'    => $var->name,
 				'{id}'      => $rg->id,
 				'{value}'   => esc_attr( $value ),
-				'{checked}' => checked( $var->val, $value, 0 ),
+				'{checked}' => checked( $var->val, $value, false ),
 				'{label}'   => $label,
 			] );
 		}
@@ -863,14 +808,8 @@ class Kama_Post_Meta_Box_Fields {
 	 *     'meta_name' => [ 'type'=>'checkbox', 'title'=>'Check me', 'desc'=>'mark it if you want to :)' ]
 	 *     'meta_name' => [ 'type'=>'checkbox', 'title'=>'Check me', 'options' => [ 'default' => '0' ]  ]
 	 *     ```
-	 *
-	 * @param object  $rg
-	 * @param object  $var
-	 * @param WP_Post $post
-	 *
-	 * @return string
 	 */
-	public function checkbox( object $rg, object $var, WP_Post $post ): string {
+	public function checkbox( object $rg, object $var, \WP_Post $post ): string {
 
 		$patt = '
 		<label {attrs}>
@@ -888,7 +827,7 @@ class Kama_Post_Meta_Box_Fields {
 			'{default}' => $rg->params['default'] ?? '',
 			'{id}'      => $rg->id,
 			'{value}'   => esc_attr( $value ),
-			'{checked}' => checked( $var->val, $value, 0 ),
+			'{checked}' => checked( $var->val, $value, false ),
 			'{desc}'    => $rg->desc_before ?: '',
 		] );
 
@@ -918,6 +857,7 @@ class Kama_Post_Meta_Box_Fields {
 	public function checkbox_multi( object $rg, object $var, WP_Post $post ): string {
 
 		$checkboxes = [];
+		$add_hidden = false;
 
 		foreach( $rg->options as $opt ){
 
@@ -1226,6 +1166,103 @@ trait Kama_Post_Meta_Box__Themes {
 		}
 
 	}
+}
+
+trait Kama_Post_Meta_Box__Sanitizer {
+
+	/**
+	 * Checks and run custom sanitize callback.
+	 */
+	protected function maybe_run_custom_sanitize( array $save_metadata, $post_id, $fields_data ){
+
+		// Own sanitizing.
+		if( is_callable( $this->opt->save_sanitize ) ){
+			return call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
+		}
+
+		// Sanitizing hook.
+		if( has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
+			return apply_filters( "kpmb_save_sanitize_{$this->opt->id}", $save_metadata, $post_id, $fields_data );
+		}
+
+		/**
+		 * INFO: Other sanitization is hanged on wp_hook.
+		 * {@see set_value_sanitize_wp_hook()}
+		 */
+
+		return $save_metadata;
+	}
+
+	/**
+	 * Sets wp hooks to sinitize values based on specified function or default function.
+	 */
+	private function set_value_sanitize_wp_hook(): void {
+
+		// Own sanitizing - this sanitization do only on edit post page. TODO: move it here.
+		if( is_callable( $this->opt->save_sanitize ) || has_filter( "kpmb_save_sanitize_{$this->opt->id}" ) ){
+			return;
+		}
+
+		foreach( $this->opt->fields as $field_key => $field ){
+			// empty field
+			if( ! $field_key || ! $field ){
+				continue;
+			}
+
+			$field_sanitize_func = $field['sanitize_func'] ?? null;
+
+			// do not clean
+			if( 'none' === $field_sanitize_func || 'no' === $field_sanitize_func ){
+				continue;
+			}
+
+			$meta_key = $this->key_prefix() . $field_key;
+			$type = $field['type'] ?? 'text';
+
+			// there is a function for cleaning a separate field
+			if( is_callable( $field_sanitize_func ) ){
+				add_filter( "sanitize_post_meta_{$meta_key}", $field_sanitize_func, 10, 1 );
+			}
+			elseif( 'number' === $type ){
+				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__number' ], 10, 1 );
+			}
+			elseif( 'email' === $type ){
+				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__email' ], 10, 1 );
+			}
+			elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
+				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__textarea' ], 10, 1 );
+			}
+			else {
+				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__default' ], 10, 1 );
+			}
+
+		}
+	}
+
+	public static function _sanitize_val__number( $value ){
+		return is_float( $value + 0 ) ? (float) $value : (int) $value;
+	}
+
+	public static function _sanitize_val__email( $value ){
+		return sanitize_email( $value );
+	}
+
+	public static function _sanitize_val__textarea( $value ){
+		return wp_kses_post( $value );
+	}
+
+	public static function _sanitize_val__default( $value ){
+
+		// do not clean - apparently it is an arbitrary field output function that saves an array
+		if( is_array( $value ) ){
+			return $value;
+		}
+
+		$value = sanitize_text_field( $value );
+
+		return $value;
+	}
+
 }
 
 
