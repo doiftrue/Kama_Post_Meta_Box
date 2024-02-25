@@ -1,3 +1,6 @@
+1.16 — 06.02.2024
+- Sanitization on save moved to wordpress hooks.
+
 1.13 — 06.11.2022
 - Refactoring and minor improvements.
 - `desc` parameter for `sep` field.
