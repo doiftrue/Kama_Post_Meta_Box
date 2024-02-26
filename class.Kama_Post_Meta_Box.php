@@ -22,7 +22,7 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.16
+ * @version 1.17
  */
 class Kama_Post_Meta_Box {
 
@@ -1041,7 +1041,7 @@ class Kama_Post_Meta_Box_Fields {
 	// text, email, number, url, tel, color, password, date, month, week, range
 	public function default( object $rg, object $var, WP_Post $post ): string {
 
-		$_style = ( $rg->type === 'text' && false === strpos( $rg->attr, 'style=' ) )
+		$_style = ( in_array( $rg->type, [ 'text', 'url' ], true ) && false === strpos( $rg->attr, 'style=' ) )
 			? ' style="width:100%;"'
 			: '';
 
@@ -1226,8 +1226,11 @@ trait Kama_Post_Meta_Box__Sanitizer {
 			elseif( 'number' === $type ){
 				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__number' ], 10, 1 );
 			}
+			elseif( 'url' === $type ){
+				add_filter( "sanitize_post_meta_{$meta_key}", 'sanitize_url', 10, 1 );
+			}
 			elseif( 'email' === $type ){
-				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__email' ], 10, 1 );
+				add_filter( "sanitize_post_meta_{$meta_key}", 'sanitize_email', 10, 1 );
 			}
 			elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
 				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__textarea' ], 10, 1 );
@@ -1241,10 +1244,6 @@ trait Kama_Post_Meta_Box__Sanitizer {
 
 	public static function _sanitize_val__number( $value ){
 		return is_float( $value + 0 ) ? (float) $value : (int) $value;
-	}
-
-	public static function _sanitize_val__email( $value ){
-		return sanitize_email( $value );
 	}
 
 	public static function _sanitize_val__textarea( $value ){
