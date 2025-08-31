@@ -22,7 +22,7 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.17
+ * @version 1.18.1
  */
 class Kama_Post_Meta_Box {
 
@@ -147,7 +147,6 @@ class Kama_Post_Meta_Box {
 	 * }
 	 */
 	public function __construct( array $opt ){
-
 		// do nothing on front
 		if( ! is_admin() && ! defined('DOING_AJAX') ){
 			return;
@@ -162,15 +161,9 @@ class Kama_Post_Meta_Box {
 	}
 
 	private function set_fields_class(): void {
-
 		$fields_class = apply_filters( 'kama_post_meta_box__fields_class', '' );
 
-		if( $fields_class ){
-			$this->fields_class = new $fields_class();
-		}
-		else {
-			$this->fields_class = new Kama_Post_Meta_Box_Fields();
-		}
+		$this->fields_class = $fields_class ? new $fields_class() : new Kama_Post_Meta_Box_Fields();
 	}
 
 	public function get_fields_class(): Kama_Post_Meta_Box_Fields {
@@ -178,7 +171,6 @@ class Kama_Post_Meta_Box {
 	}
 
 	public function init_hooks(): void {
-
 		// maybe the metabox is disabled by capability.
 		if( $this->opt->cap && ! current_user_can( $this->opt->cap ) ){
 			return;
@@ -239,7 +231,6 @@ class Kama_Post_Meta_Box {
 	 * @param WP_Post $post Post object.
 	 */
 	public function meta_box_html( $post ): void {
-
 		$fields_out = '';
 		$hidden_out = '';
 
@@ -304,7 +295,6 @@ class Kama_Post_Meta_Box {
 	 * @return void False If the check is not passed.
 	 */
 	public function meta_box_save( $post_id, $post ): void {
-
 		if(
 			// no data
 			! ( $save_metadata = isset( $_POST[ $key = "{$this->id}_meta" ] ) ? $_POST[ $key ] : '' )
@@ -348,12 +338,9 @@ class Kama_Post_Meta_Box {
 		// Save
 		foreach( $save_metadata as $meta_key => $value ){
 			// If there is a save function
-			if(
-				! empty( $fields_data[ $meta_key ]['update_func'] )
-				&&
-				is_callable( $fields_data[ $meta_key ]['update_func'] )
-			){
-				call_user_func( $fields_data[ $meta_key ]['update_func'], $post, $meta_key, $value );
+			$update_func = $fields_data[ $meta_key ]['update_func'] ?? '';
+			if( is_callable( $update_func ) ){
+				$update_func( $post, $meta_key, $value );
 			}
 			elseif( ! $value && ( $value !== '0' ) ){
 				delete_post_meta( $post_id, $meta_key );
@@ -713,22 +700,6 @@ class Kama_Post_Meta_Box_Fields {
 		return $sep;
 	}
 
-	// textarea
-	public function textarea( object $rg, object $var, WP_Post $post ): string {
-		$_style = ( false === strpos( $rg->attr, 'style=' ) ) ? ' style="width:98%;"' : '';
-
-		$field = sprintf( '<textarea %s id="%s" name="%s">%s</textarea>',
-			( $rg->attr . $var->class . $var->pholder . $_style ),
-			$rg->id,
-			$var->name,
-			esc_textarea( $var->val )
-		);
-
-		$field = $this->field_desc_concat( $field );
-
-		return $var->title . $this->tpl__field( $field );
-	}
-
 	// select
 	public function select( object $rg, object $var, WP_Post $post ): string {
 
@@ -919,6 +890,22 @@ class Kama_Post_Meta_Box_Fields {
 		);
 	}
 
+	// textarea
+	public function textarea( object $rg, object $var, WP_Post $post ): string {
+		$_style = ( false === strpos( $rg->attr, 'style=' ) ) ? ' style="width:98%;"' : '';
+
+		$field = sprintf( '<textarea %s id="%s" name="%s">%s</textarea>',
+			( $rg->attr . $var->class . $var->pholder . $_style ),
+			$rg->id,
+			$var->name,
+			esc_textarea( $var->val )
+		);
+
+		$field = $this->field_desc_concat( $field );
+
+		return $var->title . $this->tpl__field( $field );
+	}
+
 	// wp_editor
 	public function wp_editor( object $rg, object $var, WP_Post $post ): string {
 
@@ -945,6 +932,110 @@ class Kama_Post_Meta_Box_Fields {
 		$field = $this->field_desc_concat( $field );
 
 		return $var->title . $this->tpl__field( $field );
+	}
+
+	/**
+	 * Markdown editor.
+	 *
+	 * Example:
+	 *     'field_name' => [
+	 *        'title'         => 'My Field',
+	 *        'type'          => 'md_editor',
+	 *        'sanitize_func' => [ __CLASS__, '_textarea_sanitize_cb' ],
+	 *        'desc_after'    => 'Use <a href="https://simplemde.com/markdown-guide">Markdown</a>.',
+	 *        'options'       => [ 'minHeight' => '70px' ]
+	 *     ]
+	 *
+	 */
+	public function md_editor( object $rg, object $var, WP_Post $post ): string {
+
+		$_style = ( false === strpos( $rg->attr, 'style=' ) ) ? ' style="width:98%;"' : '';
+
+		$field = sprintf( '<textarea %s id="%s" name="%s">%s</textarea>',
+			( $rg->attr . $var->class . $var->pholder . $_style ),
+			$rg->id,
+			$var->name,
+			esc_textarea( $var->val )
+		);
+
+		$field = $this->field_desc_concat( $field );
+
+		static $extra_files;
+		if( ! $extra_files ){
+			ob_start();
+			?>
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css"/>
+	        <script defer src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+			<style>
+				#wpbody .EasyMDEContainer .editor-toolbar { padding: .1em .5em; }
+				#wpbody .EasyMDEContainer .editor-toolbar .separator { border-left-color: #e4e4e4; }
+				#wpbody .EasyMDEContainer .editor-toolbar .mde-guide { float: right; }
+
+				#wpbody .EasyMDEContainer ul,
+				#wpbody .EasyMDEContainer ol { margin: 0 0 1.2em; }
+				#wpbody .EasyMDEContainer ul li { list-style: disc; }
+				#wpbody .EasyMDEContainer ol li { list-style: decimal; }
+				#wpbody .EasyMDEContainer li { margin-left: 1.5em; margin-bottom: .3em; }
+
+				#wpbody .EasyMDEContainer .cm-link { color: #0b5c9d; }
+				#wpbody .EasyMDEContainer .cm-url { color: #bd4101; }
+
+				#wpbody .EasyMDEContainer .cm-header-1,
+				#wpbody .EasyMDEContainer h1 { font-size: 180%; margin: .3em 0 .3em; padding: 0; font-weight: bold; }
+				#wpbody .EasyMDEContainer .cm-header-2,
+				#wpbody .EasyMDEContainer h2 { font-size: 150%; margin: .5em 0 .5em; padding: 0; font-weight: bold; }
+				#wpbody .EasyMDEContainer .cm-header-3,
+				#wpbody .EasyMDEContainer h3 { font-size: 120%; margin: .7em 0 .7em; padding: 0; font-weight: bold; }
+				#wpbody .EasyMDEContainer .cm-header-4,
+				#wpbody .EasyMDEContainer h4 { font-size: 110%; margin: 1em 0 .8em; padding: 0; font-weight: bold; }
+				#wpbody .EasyMDEContainer .cm-header-5,
+				#wpbody .EasyMDEContainer h5 { font-size: 100%; margin: 1em 0 1em; padding: 0; font-weight: bold; }
+				#wpbody .EasyMDEContainer .cm-header-6,
+				#wpbody .EasyMDEContainer h6 { font-size: 100%; margin: 1em 0 1em; padding: 0; font-weight: bold; }
+
+				#wpbody .EasyMDEContainer blockquote { padding-left: .7em; border-left: 2px solid #777; }
+
+				#wpbody .EasyMDEContainer .cm-formatting-code { padding:.2em; background: #f0f0f1; }
+				#wpbody .EasyMDEContainer .cm-comment { font-family: monospace; padding:.2em; background: #f0f0f1; }
+				#wpbody .EasyMDEContainer .editor-preview pre code { background: #f0f0f1; margin: 0; padding: 0 .2em; font-size: inherit; }
+				#wpbody .EasyMDEContainer .editor-preview pre { background: #f0f0f1; padding: .7em 1em; }
+				#wpbody .EasyMDEContainer .editor-preview pre code { background: none; margin: 0; padding: 0; font-size: inherit; }
+
+				#wpbody .EasyMDEContainer .cm-tag { color: #023a9b; }
+				#wpbody .EasyMDEContainer .cm-attribute { color: #a4492c; }
+
+			</style>
+	        <?php
+			$extra_files = ob_get_clean();
+		}
+
+		// see: https://github.com/Ionaru/easy-markdown-editor
+		ob_start();
+		?>
+		<script>
+			document.addEventListener( 'DOMContentLoaded', function(){
+				const easyMDE = new EasyMDE( {
+					element: document.getElementById( '<?= $rg->id ?>' ),
+					minHeight: '<?= $rg->options['minHeight'] ?? '70px' ?>',
+					forceSync: true,
+					status: false,
+					indentWithTabs: true,
+					spellChecker: false,
+					tabSize: 4,
+					unorderedListStyle: '-',
+					toolbarButtonClassPrefix: 'mde',
+					autoRefresh: { delay: 500 }, // issue with hidden
+					toolbar: [ 'preview', '|', 'bold', 'italic', 'heading-3', 'unordered-list', 'ordered-list', '|', 'link', 'image', /*'upload-image',*/ '|', 'quote', 'code', '|', 'undo', 'guide' ],
+					imageUploadFunction: function( file ){
+						console.log( file )
+					},
+				} );
+			})
+		</script>
+		<?php
+		$md_editor_init = ob_get_clean();
+
+		return $var->title . $this->tpl__field( $field ) . $extra_files . $md_editor_init;
 	}
 
 	// image
@@ -1121,7 +1212,7 @@ trait Kama_Post_Meta_Box__Themes {
 				'title_patt'  => '<div class="kpmb-grid__title">%s</div>',
 				'field_patt'  => '<div class="kpmb-grid__field">%s</div>',
 				'desc_before_patt' => '<p class="description kpmb__desc --before">%s</p>',
-				'desc_after_patt'  => '<br><p class="description kpmb__desc --after">%s</p>',
+				'desc_after_patt'  => '<p class="description kpmb__desc --after">%s</p>',
 			],
 		];
 
@@ -1174,7 +1265,6 @@ trait Kama_Post_Meta_Box__Sanitizer {
 	 * Checks and run custom sanitize callback.
 	 */
 	protected function maybe_run_custom_sanitize( array $save_metadata, $post_id, $fields_data ){
-
 		// Own sanitizing.
 		if( is_callable( $this->opt->save_sanitize ) ){
 			return call_user_func( $this->opt->save_sanitize, $save_metadata, $post_id, $fields_data );
@@ -1232,7 +1322,7 @@ trait Kama_Post_Meta_Box__Sanitizer {
 			elseif( 'email' === $type ){
 				add_filter( "sanitize_post_meta_{$meta_key}", 'sanitize_email', 10, 1 );
 			}
-			elseif( in_array( $type, [ 'wp_editor', 'textarea' ], true ) ){
+			elseif( in_array( $type, [ 'wp_editor', 'textarea', 'md_editor' ], true ) ){
 				add_filter( "sanitize_post_meta_{$meta_key}", [ __CLASS__, '_sanitize_val__textarea' ], 10, 1 );
 			}
 			else {
