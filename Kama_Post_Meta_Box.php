@@ -18,11 +18,11 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * The block is rendered and the meta-fields are saved for users with edit current post capability only.
  *
- * Requires PHP: 7.2
+ * Requires PHP: 7.4
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.18.1
+ * @version 1.19
  */
 class Kama_Post_Meta_Box {
 
@@ -1047,7 +1047,7 @@ class Kama_Post_Meta_Box_Fields {
 		if( ! $once && $once = 1 ){
 			add_action( 'admin_print_footer_scripts', function(){
 				?>
-				<script>
+				<script id="kama_post_meta_box_image_field_js">
 					jQuery('.kmb_img_wrap').each(function(){
 
 						let $ = jQuery
@@ -1353,5 +1353,3 @@ trait Kama_Post_Meta_Box__Sanitizer {
 	}
 
 }
-
-
