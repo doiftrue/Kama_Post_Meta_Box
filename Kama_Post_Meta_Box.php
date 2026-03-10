@@ -22,7 +22,7 @@ if( class_exists( 'Kama_Post_Meta_Box' ) ){
  *
  * @changlog https://github.com/doiftrue/Kama_Post_Meta_Box/blob/master/changelog.md
  *
- * @version 1.19
+ * @version 1.20
  */
 class Kama_Post_Meta_Box {
 
@@ -192,12 +192,19 @@ class Kama_Post_Meta_Box {
 
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ], 10, 2 );
 		add_action( 'save_post', [ $this, 'meta_box_save' ], 1, 2 );
+		add_action( 'edit_attachment', [ $this, 'save_attachment_meta_box' ], 1 );
 
 		$this->set_value_sanitize_wp_hook();
 	}
+	
+	public function save_attachment_meta_box( $post_id ): void {
+		$post = get_post( $post_id );
+		if ( $post instanceof WP_Post ) {
+			$this->meta_box_save( $post_id, $post );
+		}
+	}
 
 	public function add_meta_box( $post_type, $post ): void {
-
 		$opt = $this->opt;
 
 		if( $opt->post_type_options && is_string( $opt->post_type_options ) ){
